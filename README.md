@@ -123,8 +123,8 @@ If you want to build GestureKit yourself:
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourname/gesturekit.git
-cd gesturekit
+git clone https://github.com/vuhpquang/mac-shortcuts.git
+cd mac-shortcuts
 
 # Build using Swift Package Manager
 swift build -c release
@@ -134,6 +134,39 @@ swift build -c release
 ```
 
 See `build.sh` for full distribution build instructions including code signing and notarization.
+
+### Running Locally (development build)
+
+```bash
+# Debug build (faster compile, verbose logs)
+swift build
+
+# Run directly from the build output
+.build/debug/GestureKit
+```
+
+When running a debug build, GestureKit behaves exactly like the release version. It will appear in the menu bar and request Accessibility permission as normal. To quit, use the menu bar icon → **Quit GestureKit**, or press `Ctrl+C` in the terminal.
+
+> **Tip:** You can run multiple instances from different branches by building each one and launching from its own `.build/` path.
+
+### Coding & Debugging in Xcode
+
+GestureKit uses Swift Package Manager, so Xcode opens it without any extra setup:
+
+```bash
+# Open the package in Xcode
+open Package.swift
+```
+
+Xcode will resolve the package and show the full source tree under **Sources/GestureKit/**.
+
+**Useful debug tips:**
+
+- **Print logging** — every major component (`DeviceMonitor`, `GestureRecognizer`, `GestureCoordinator`) emits `[GestureKit]`-prefixed log lines. Run the app from Xcode and watch the console (View → Debug Area → Activate Console).
+- **Breakpoints** — set breakpoints inside `GestureRecognizer.swift` on `didReceiveFingers` or the gesture-emit calls to inspect live finger data as you move on the trackpad.
+- **Accessibility in the debugger** — macOS may require you to add `Xcode` (or your terminal app) to the Accessibility list, not just GestureKit, when running under the debugger. Go to **System Settings → Privacy & Security → Accessibility** and add both.
+- **Simulating gestures without a trackpad** — there is no simulator for MultitouchSupport. You need a physical trackpad. A Magic Trackpad connected via USB or Bluetooth works the same as a built-in one.
+- **Scheme settings** — in Xcode, select the **GestureKit** scheme and go to **Edit Scheme → Run → Arguments** to pass environment variables (e.g., `NOTARIZE=1` for a full distribution build test).
 
 ---
 
