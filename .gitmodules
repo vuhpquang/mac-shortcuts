@@ -1,0 +1,3 @@
+[submodule "projects/gesturekit"]
+	path = projects/gesturekit
+	url = ./projects/gesturekit
