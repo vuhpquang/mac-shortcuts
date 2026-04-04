@@ -3,7 +3,7 @@
     "id": "gesturekit",
     "name": "gesturekit",
     "goal": "A macOS menu bar app that detects multitouch trackpad gestures and maps them to system actions (middle click, Mission Control, etc.)",
-    "status": "qc_passed"
+    "status": "released"
   },
   "features": [
     {
