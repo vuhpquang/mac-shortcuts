@@ -18,11 +18,7 @@ let package = Package(
             resources: [
                 .copy("Resources/Info.plist")
             ],
-            swiftSettings: [
-                // Build a universal binary that runs on both Apple Silicon (arm64)
-                // and older Intel Macs (x86_64)
-                .unsafeFlags(["-target", "arm64-apple-macos13"])
-            ]
+            swiftSettings: []
         )
     ]
 )

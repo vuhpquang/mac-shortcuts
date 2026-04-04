@@ -83,6 +83,14 @@ class DeviceMonitor {
         }
 
         devices.removeAll()
+
+        // Release every retained self-pointer that was created in registerCallback(for:).
+        // This balances each passRetained call and prevents memory leaks.
+        for ptr in deviceContextPointers {
+            Unmanaged<DeviceMonitor>.fromOpaque(ptr).release()
+        }
+        deviceContextPointers.removeAll()
+
         isRunning = false
         print("[GestureKit] DeviceMonitor: Stopped.")
     }
@@ -90,34 +98,44 @@ class DeviceMonitor {
     // MARK: - Callback Registration
 
     // We need a way to pass `self` into a C-style callback (which can't capture Swift objects).
-    // The trick: store a pointer to `self` in a global box, then read it from inside the callback.
     //
-    // Note: This approach works for a single DeviceMonitor instance (the singleton pattern
-    // used by GestureCoordinator). For multiple instances you'd need a more complex context map.
+    // Idiomatic Swift solution: use Unmanaged to create a raw pointer to `self` and pass it
+    // as the userInfo/context for each device registration.  Each device gets its own retained
+    // pointer so registering a second (or third) device never overwrites the first device's
+    // context reference — eliminating the data race that existed with the old single global.
+    //
+    // Memory management contract:
+    //   - passRetained increments the retain count when we register.
+    //   - stop() calls release() on every stored pointer, decrementing the retain count.
+    //   - The net effect is zero leaks as long as stop() is always called (or the monitor
+    //     is never stopped, in which case the object stays alive intentionally).
+
+    /// Opaque pointers kept alive for the lifetime of each device registration.
+    /// Each entry is an Unmanaged-retained pointer to `self` that must be released in stop().
+    private var deviceContextPointers: [UnsafeMutableRawPointer] = []
 
     private func registerCallback(for device: MTDevice) {
-        // Store a raw pointer to this DeviceMonitor in the global bridge.
-        DeviceMonitorBridge.instance = self
+        // Retain self and convert to an opaque pointer.  This pointer is stable — it will not
+        // be overwritten when the next device is registered, fixing BUG-03.
+        let contextPtr = Unmanaged.passRetained(self).toOpaque()
+        deviceContextPointers.append(contextPtr)
 
-        MultitouchFramework.shared.MTRegisterContactFrameCallback?(device, deviceTouchCallback)
+        MultitouchFramework.shared.MTRegisterContactFrameCallbackWithRefcon?(device, deviceTouchCallback, contextPtr)
     }
-}
-
-// MARK: - Global Callback Bridge
-
-// C-style callbacks cannot capture Swift class instances (no closures in C).
-// We work around this by storing the DeviceMonitor in a global variable
-// and reading it from inside the @convention(c) callback function.
-private class DeviceMonitorBridge {
-    static weak var instance: DeviceMonitor?
 }
 
 // MARK: - C-Compatible Touch Callback
 
 // This is the actual function that MultitouchSupport calls every time
 // new finger data is ready. It MUST be @convention(c) (no Swift captures).
-private let deviceTouchCallback: MTContactFrameCallback = { device, fingerData, fingerCount, timestamp, frame in
-    guard let monitor = DeviceMonitorBridge.instance else { return }
+//
+// The refcon (reference context) parameter carries the opaque pointer that was
+// passed to MTRegisterContactFrameCallbackWithRefcon above.  We recover the
+// DeviceMonitor from it with takeUnretainedValue — we do NOT take ownership
+// here because stop() is responsible for the balancing release().
+private let deviceTouchCallback: MTContactFrameCallbackWithRefcon = { device, fingerData, fingerCount, timestamp, frame, refcon in
+    guard let refcon = refcon else { return }
+    let monitor = Unmanaged<DeviceMonitor>.fromOpaque(refcon).takeUnretainedValue()
     guard let fingerData = fingerData, fingerCount > 0 else { return }
 
     // Convert the raw C array of MTFinger structs into a Swift Array.

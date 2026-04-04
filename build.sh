@@ -1,198 +1,208 @@
 #!/usr/bin/env bash
 # build.sh
-# This script builds GestureKit, signs it, packages it into a DMG, and notarizes it.
+# This script builds GestureKit (an SPM-based macOS app), signs the binary,
+# packages it into a DMG, and optionally submits it for notarization.
 #
 # What it does, step by step:
-#   1. Compiles GestureKit from source using xcodebuild
-#   2. Creates a .xcarchive (a build snapshot used for distribution)
-#   3. Exports the signed .app from the archive
-#   4. Creates a DMG installer file (the kind you download and drag to Applications)
-#   5. Submits the DMG to Apple for notarization (required for macOS Gatekeeper)
-#   6. Attaches ("staples") the notarization ticket to the DMG
+#   1. Compiles GestureKit as a universal binary (Apple Silicon + Intel) using `swift build`
+#   2. Code-signs the compiled binary with your Developer ID certificate
+#   3. Creates a DMG installer file (the kind you download and drag to Applications)
+#   4. Optionally submits the DMG to Apple for notarization (set NOTARIZE=1 to enable)
+#   5. Optionally attaches ("staples") the notarization ticket to the DMG
 #
 # REQUIREMENTS before running:
-#   - Xcode + Command Line Tools installed
+#   - Swift toolchain (comes with Xcode or Command Line Tools)
 #   - A valid "Developer ID Application" certificate in your Keychain
-#   - An Apple Developer account with notarization credentials set up
-#   - xcrun notarytool credentials stored in Keychain (see README for instructions)
+#   - For notarization: an Apple Developer account with xcrun notarytool credentials
+#     stored in Keychain (see README for setup instructions)
 #
 # USAGE:
-#   chmod +x build.sh      # (already done by git) Make the script executable
-#   ./build.sh             # Run the build
+#   chmod +x build.sh           # Make the script executable (already done by git)
+#   ./build.sh                  # Build and package (no notarization)
+#   NOTARIZE=1 ./build.sh       # Build, package, AND notarize
+#
+# ENVIRONMENT VARIABLES:
+#   TEAM_ID            — Your Developer ID Application certificate name.
+#                        Example: "Developer ID Application: Jane Smith (ABCD1234EF)"
+#   NOTARIZE           — Set to 1 to submit the DMG for notarization after packaging.
+#   NOTARYTOOL_PROFILE — Keychain profile name used by xcrun notarytool (default: GestureKit)
 
-# Exit immediately if any command fails.
-# This prevents partial builds from silently continuing.
+# Exit immediately if any command fails, if any variable is unset, or if a pipe fails.
+# This prevents a broken build from silently continuing past errors.
 set -euo pipefail
 
 # ─────────────────────────────────────────────────────────
-# CONFIGURATION — update these for your signing identity
+# CONFIGURATION — update TEAM_ID for your signing certificate
 # ─────────────────────────────────────────────────────────
 
-# Your Developer ID Application certificate name (shown in Keychain Access).
-# Example: "Developer ID Application: Jane Smith (TEAM12345)"
-DEVELOPER_ID="${DEVELOPER_ID:-Developer ID Application: YOUR NAME (TEAMID)}"
+# Your full Developer ID Application certificate name as shown in Keychain Access.
+# Override by passing it as an environment variable:
+#   TEAM_ID="Developer ID Application: Jane Smith (ABCD1234EF)" ./build.sh
+TEAM_ID="${TEAM_ID:-Developer ID Application: YOUR NAME (TEAMID)}"
 
-# Your Apple ID email and App-Specific Password for notarization.
-# Store these in Keychain using:
+# Keychain profile created with `xcrun notarytool store-credentials`.
+# Only used when NOTARIZE=1.
+NOTARYTOOL_PROFILE="${NOTARYTOOL_PROFILE:-GestureKit}"
+
+# Whether to notarize after packaging (0 = skip, 1 = notarize).
+NOTARIZE="${NOTARIZE:-0}"
+
+# The name of the binary produced by `swift build`.
+# This must match the executable target name in Package.swift.
+BINARY_NAME="GestureKit"
+
+# Where `swift build` places the universal Release binary when targeting both archs.
+BINARY_PATH=".build/apple/Products/Release/${BINARY_NAME}"
+
+# Directory where we stage files before creating the DMG, and where the DMG lands.
+BUILD_DIR="$(pwd)/build"
+
+# Final DMG output path.
+DMG_PATH="${BUILD_DIR}/${BINARY_NAME}.dmg"
+
+# ─────────────────────────────────────────────────────────
+# STEP 0: Clean and prepare the build output directory
+# ─────────────────────────────────────────────────────────
+
+echo "==> Preparing build directory: ${BUILD_DIR}"
+rm -rf "${BUILD_DIR}"
+mkdir -p "${BUILD_DIR}"
+
+# ─────────────────────────────────────────────────────────
+# STEP 1: Compile a universal release binary with Swift PM
+#
+# `swift build -c release` compiles with optimizations.
+# `--arch arm64 --arch x86_64` produces a "universal" (fat) binary that
+# runs natively on both Apple Silicon Macs and older Intel Macs.
+# The compiled binary is written to:
+#   .build/apple/Products/Release/GestureKit
+# ─────────────────────────────────────────────────────────
+
+echo "==> Building universal release binary..."
+swift build \
+    -c release \
+    --arch arm64 \
+    --arch x86_64
+
+# Verify the binary was actually produced before continuing.
+if [[ ! -f "${BINARY_PATH}" ]]; then
+    echo "ERROR: Expected binary not found at ${BINARY_PATH}" >&2
+    exit 1
+fi
+
+echo "==> Build succeeded. Binary at: ${BINARY_PATH}"
+
+# ─────────────────────────────────────────────────────────
+# STEP 2: Code-sign the binary
+#
+# Code signing proves to macOS that the app came from a known developer
+# and has not been tampered with. Without a valid Developer ID signature,
+# Gatekeeper will block the app from running on other people's Macs.
+#
+# --deep   : Sign nested code (frameworks, helpers, etc.) recursively.
+# --force  : Replace any existing signature (safe to run repeatedly).
+# --sign   : The certificate identity to sign with (from Keychain).
+# ─────────────────────────────────────────────────────────
+
+echo "==> Code-signing binary with: ${TEAM_ID}"
+codesign \
+    --deep \
+    --force \
+    --sign "${TEAM_ID}" \
+    "${BINARY_PATH}"
+
+# Verify the signature looks correct before packaging.
+echo "==> Verifying code signature..."
+codesign --verify --deep --strict --verbose=2 "${BINARY_PATH}"
+echo "==> Code signature OK."
+
+# ─────────────────────────────────────────────────────────
+# STEP 3: Create the DMG installer
+#
+# A DMG (Disk Image) is the standard macOS distribution format.
+# Users download it, double-click to mount it, then copy the app
+# to /Applications (or anywhere they like).
+#
+# We build the DMG in two stages:
+#   a) Create a temporary read-write DMG from a staging folder
+#      that contains the signed binary and a symlink to /Applications.
+#   b) Convert it to a compressed, read-only DMG for distribution.
+# ─────────────────────────────────────────────────────────
+
+echo "==> Staging DMG contents..."
+
+# Create a staging folder; this becomes the DMG window's contents.
+STAGING_DIR="${BUILD_DIR}/dmg_staging"
+mkdir -p "${STAGING_DIR}"
+
+# Copy the signed binary into the staging folder.
+cp "${BINARY_PATH}" "${STAGING_DIR}/${BINARY_NAME}"
+
+# Add a symlink so users can drag the binary to /Applications.
+ln -s /Applications "${STAGING_DIR}/Applications"
+
+echo "==> Creating DMG from staging folder..."
+
+TEMP_DMG="${BUILD_DIR}/tmp_${BINARY_NAME}.dmg"
+
+# hdiutil create: build a compressed DMG directly from the staging folder.
+#   -volname  : The volume name shown when the DMG is mounted.
+#   -srcfolder: Folder whose contents populate the DMG.
+#   -fs HFS+  : macOS extended filesystem (required for Gatekeeper / code signing attributes).
+#   -format UDZO : zlib-compressed read-only image, suitable for distribution.
+#   -ov       : Overwrite the output file if it already exists.
+hdiutil create \
+    -volname "${BINARY_NAME}" \
+    -srcfolder "${STAGING_DIR}" \
+    -fs HFS+ \
+    -format UDZO \
+    -ov \
+    "${DMG_PATH}"
+
+# Remove the temporary staging folder — the final DMG is self-contained.
+rm -rf "${STAGING_DIR}"
+
+echo "==> DMG created at: ${DMG_PATH}"
+
+# ─────────────────────────────────────────────────────────
+# STEP 4 (optional): Notarize the DMG
+#
+# Notarization is Apple's automated malware scan for apps distributed
+# outside the App Store. Without it, macOS Gatekeeper shows a warning
+# ("This app cannot be opened because Apple cannot check it for malicious
+# software") on the user's first launch.
+#
+# Requires NOTARIZE=1 and a valid keychain profile set up with:
 #   xcrun notarytool store-credentials "GestureKit" \
 #     --apple-id "you@example.com" \
 #     --team-id "TEAMID" \
 #     --password "xxxx-xxxx-xxxx-xxxx"
-NOTARYTOOL_PROFILE="${NOTARYTOOL_PROFILE:-GestureKit}"
-
-# Build output directory (relative to this script's location).
-BUILD_DIR="$(pwd)/build"
-
-# App and archive names.
-SCHEME="GestureKit"
-ARCHIVE_PATH="$BUILD_DIR/$SCHEME.xcarchive"
-EXPORT_PATH="$BUILD_DIR/export"
-APP_PATH="$EXPORT_PATH/$SCHEME.app"
-DMG_PATH="$BUILD_DIR/$SCHEME.dmg"
-
-# ─────────────────────────────────────────────────────────
-# STEP 0: Clean and create build directory
-# ─────────────────────────────────────────────────────────
-
-echo "==> Preparing build directory..."
-rm -rf "$BUILD_DIR"
-mkdir -p "$BUILD_DIR"
-
-# ─────────────────────────────────────────────────────────
-# STEP 1: Archive the app
-# Archives are like "frozen builds" — a snapshot of the compiled app
-# in a format ready for export and signing.
-# ─────────────────────────────────────────────────────────
-
-echo "==> Archiving $SCHEME..."
-xcodebuild \
-    -scheme "$SCHEME" \
-    -configuration Release \
-    -archivePath "$ARCHIVE_PATH" \
-    archive \
-    SKIP_INSTALL=NO \
-    BUILD_LIBRARY_FOR_DISTRIBUTION=YES
-
-echo "==> Archive created at: $ARCHIVE_PATH"
-
-# ─────────────────────────────────────────────────────────
-# STEP 2: Create ExportOptions.plist
-# This tells xcodebuild how to export the app for distribution:
-# "Developer ID" = outside the App Store, for direct download.
-# ─────────────────────────────────────────────────────────
-
-EXPORT_OPTIONS_PLIST="$BUILD_DIR/ExportOptions.plist"
-cat > "$EXPORT_OPTIONS_PLIST" << EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>method</key>
-    <string>developer-id</string>
-    <key>signingStyle</key>
-    <string>automatic</string>
-    <key>teamID</key>
-    <string>TEAMID</string>
-    <key>stripSwiftSymbols</key>
-    <true/>
-    <key>uploadBitcode</key>
-    <false/>
-</dict>
-</plist>
-EOF
-
-# ─────────────────────────────────────────────────────────
-# STEP 3: Export the signed .app from the archive
-# ─────────────────────────────────────────────────────────
-
-echo "==> Exporting signed app..."
-xcodebuild \
-    -exportArchive \
-    -archivePath "$ARCHIVE_PATH" \
-    -exportPath "$EXPORT_PATH" \
-    -exportOptionsPlist "$EXPORT_OPTIONS_PLIST"
-
-echo "==> App exported to: $APP_PATH"
-
-# ─────────────────────────────────────────────────────────
-# STEP 4: Additional code signing (belt-and-suspenders)
-# Ensures the app bundle is properly signed before packaging.
-# ─────────────────────────────────────────────────────────
-
-echo "==> Verifying code signature..."
-codesign --deep --force --verify --sign "$DEVELOPER_ID" "$APP_PATH"
-codesign --verify --deep --strict --verbose=2 "$APP_PATH"
-
-echo "==> Code signature verified."
-
-# ─────────────────────────────────────────────────────────
-# STEP 5: Create the DMG installer
 #
-# A DMG (Disk Image) is the standard macOS way to distribute apps.
-# Users download it, double-click to mount it, and drag the app to Applications.
-# We create a temporary read-write DMG, add the app + an Applications symlink,
-# then convert it to a compressed read-only DMG for distribution.
+# --wait : Block until Apple's servers return a result (pass/fail).
 # ─────────────────────────────────────────────────────────
 
-echo "==> Creating DMG..."
+if [[ "${NOTARIZE}" == "1" ]]; then
+    echo "==> Submitting DMG for notarization (this may take several minutes)..."
+    xcrun notarytool submit "${DMG_PATH}" \
+        --keychain-profile "${NOTARYTOOL_PROFILE}" \
+        --wait
+    echo "==> Notarization complete."
 
-TEMP_DMG="$BUILD_DIR/tmp_$SCHEME.dmg"
-MOUNT_DIR="$BUILD_DIR/dmg_mount"
-
-# Create a read-write DMG.
-hdiutil create \
-    -size 50m \
-    -volname "$SCHEME" \
-    -fs HFS+ \
-    -srcfolder "$APP_PATH" \
-    -ov \
-    "$TEMP_DMG"
-
-# Mount the DMG so we can add the Applications symlink.
-hdiutil attach "$TEMP_DMG" -mountpoint "$MOUNT_DIR" -noautoopen
-
-# Add a symlink to /Applications inside the DMG.
-# This gives users the familiar "drag here to install" affordance.
-ln -s /Applications "$MOUNT_DIR/Applications"
-
-# Unmount the DMG.
-hdiutil detach "$MOUNT_DIR"
-
-# Convert the read-write DMG to a compressed read-only DMG for distribution.
-hdiutil convert "$TEMP_DMG" -format UDZO -imagekey zlib-level=9 -o "$DMG_PATH"
-
-# Clean up the temporary DMG.
-rm -f "$TEMP_DMG"
-
-echo "==> DMG created at: $DMG_PATH"
+    # "Stapling" embeds the notarization ticket inside the DMG so that
+    # Gatekeeper can verify it offline without an internet connection.
+    echo "==> Stapling notarization ticket to DMG..."
+    xcrun stapler staple "${DMG_PATH}"
+    echo "==> Staple complete."
+else
+    echo "==> Notarization skipped (set NOTARIZE=1 to enable)."
+fi
 
 # ─────────────────────────────────────────────────────────
-# STEP 6: Notarize the DMG
-#
-# Notarization is Apple's process of checking your app for malware before
-# letting it run on other people's Macs. Without it, macOS shows a scary
-# "can't be opened because Apple cannot check it for malicious software" warning.
+# Done!
 # ─────────────────────────────────────────────────────────
-
-echo "==> Submitting DMG for notarization (this may take a few minutes)..."
-xcrun notarytool submit "$DMG_PATH" \
-    --keychain-profile "$NOTARYTOOL_PROFILE" \
-    --wait
-
-echo "==> Notarization complete."
-
-# ─────────────────────────────────────────────────────────
-# STEP 7: Staple the notarization ticket
-#
-# "Stapling" attaches the notarization result directly to the DMG file
-# so Gatekeeper can verify it offline (without an internet connection).
-# ─────────────────────────────────────────────────────────
-
-echo "==> Stapling notarization ticket..."
-xcrun stapler staple "$DMG_PATH"
 
 echo ""
 echo "======================================================"
 echo "  Build complete!"
-echo "  Output: $DMG_PATH"
+echo "  Output: ${DMG_PATH}"
 echo "======================================================"
