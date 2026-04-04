@@ -65,8 +65,8 @@ class MultitouchFramework {
         // RTLD_NOW means: resolve all symbols immediately (fail fast if something's wrong).
         guard let handle = dlopen(frameworkPath, RTLD_NOW) else {
             let error = String(cString: dlerror())
-            print("[GestureKit] MultitouchSupport could not be loaded: \(error)")
-            print("[GestureKit] Gesture detection will be unavailable.")
+            print("[MacShortcuts] MultitouchSupport could not be loaded: \(error)")
+            print("[MacShortcuts] Gesture detection will be unavailable.")
             return
         }
 
@@ -75,32 +75,32 @@ class MultitouchFramework {
         // dlsym looks up a symbol (function) by name inside the loaded framework.
         // We cast the raw pointer to the typed function signature we defined above.
         guard let createListPtr = dlsym(handle, "MTDeviceCreateList") else {
-            print("[GestureKit] Could not find MTDeviceCreateList")
+            print("[MacShortcuts] Could not find MTDeviceCreateList")
             return
         }
         MTDeviceCreateList = unsafeBitCast(createListPtr, to: MTDeviceCreateListFn.self)
 
         guard let registerCallbackPtr = dlsym(handle, "MTRegisterContactFrameCallback") else {
-            print("[GestureKit] Could not find MTRegisterContactFrameCallback")
+            print("[MacShortcuts] Could not find MTRegisterContactFrameCallback")
             return
         }
         MTRegisterContactFrameCallback = unsafeBitCast(registerCallbackPtr, to: MTRegisterContactFrameCallbackFn.self)
 
         guard let startPtr = dlsym(handle, "MTDeviceStart") else {
-            print("[GestureKit] Could not find MTDeviceStart")
+            print("[MacShortcuts] Could not find MTDeviceStart")
             return
         }
         MTDeviceStart = unsafeBitCast(startPtr, to: MTDeviceStartFn.self)
 
         guard let stopPtr = dlsym(handle, "MTDeviceStop") else {
-            print("[GestureKit] Could not find MTDeviceStop")
+            print("[MacShortcuts] Could not find MTDeviceStop")
             return
         }
         MTDeviceStop = unsafeBitCast(stopPtr, to: MTDeviceStopFn.self)
 
         // All four symbols loaded successfully.
         isAvailable = true
-        print("[GestureKit] MultitouchSupport loaded successfully.")
+        print("[MacShortcuts] MultitouchSupport loaded successfully.")
     }
 
     deinit {

@@ -187,11 +187,11 @@ class ActionExecutor {
             config.activates = true  // Bring the app to the front if already running.
             NSWorkspace.shared.openApplication(at: url, configuration: config) { _, error in
                 if let error = error {
-                    print("[GestureKit] ActionExecutor: Could not open \(bundleID): \(error)")
+                    print("[MacShortcuts] ActionExecutor: Could not open \(bundleID): \(error)")
                 }
             }
         } else {
-            print("[GestureKit] ActionExecutor: App not found for bundle ID: \(bundleID)")
+            print("[MacShortcuts] ActionExecutor: App not found for bundle ID: \(bundleID)")
         }
     }
 }

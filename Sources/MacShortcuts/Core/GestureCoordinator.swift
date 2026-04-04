@@ -54,7 +54,7 @@ class GestureCoordinator: GestureRecognizerDelegate {
         guard !isRunning else { return }
         deviceMonitor.start()
         isRunning = true
-        print("[GestureKit] GestureCoordinator: Started.")
+        print("[MacShortcuts] GestureCoordinator: Started.")
     }
 
     /// Stops the gesture detection pipeline.
@@ -63,7 +63,7 @@ class GestureCoordinator: GestureRecognizerDelegate {
         guard isRunning else { return }
         deviceMonitor.stop()
         isRunning = false
-        print("[GestureKit] GestureCoordinator: Stopped.")
+        print("[MacShortcuts] GestureCoordinator: Stopped.")
     }
 
     // MARK: - Mapping Hot-Swap
@@ -73,7 +73,7 @@ class GestureCoordinator: GestureRecognizerDelegate {
     /// so changes take effect immediately without requiring a restart.
     func updateMapping(_ newMapping: GestureMapping) {
         mapping = newMapping
-        print("[GestureKit] GestureCoordinator: Mapping updated.")
+        print("[MacShortcuts] GestureCoordinator: Mapping updated.")
     }
 
     // MARK: - GestureRecognizerDelegate
@@ -86,7 +86,7 @@ class GestureCoordinator: GestureRecognizerDelegate {
         // Skip if this gesture slot is unmapped (action = .none).
         guard action != .none else { return }
 
-        print("[GestureKit] GestureCoordinator: Gesture \(gesture) → Action \(action.displayName)")
+        print("[MacShortcuts] GestureCoordinator: Gesture \(gesture) → Action \(action.displayName)")
 
         // Some actions (like opening a window) need to run on the main thread.
         // We dispatch everything to main to be safe — CGEvents work from any thread,
