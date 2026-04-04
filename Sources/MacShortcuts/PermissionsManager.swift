@@ -24,20 +24,19 @@ class PermissionsManager {
     // the old state), shows a "please restart" alert as a fallback.
     func pollUntilGranted(completion: @escaping () -> Void) {
         DispatchQueue.global(qos: .userInitiated).async {
-            var elapsed = 0
+            // Check quickly at first so an already-granted permission is detected immediately.
+            var checks = 0
             while !PermissionsManager.isAccessibilityGranted() {
-                Thread.sleep(forTimeInterval: 1.0)
-                elapsed += 1
-                // After 60 s without detecting the grant, prompt user to restart.
-                if elapsed == 60 {
-                    DispatchQueue.main.async {
-                        PermissionsManager.showRestartAlert()
-                    }
+                let interval: TimeInterval = checks < 10 ? 0.5 : 2.0
+                Thread.sleep(forTimeInterval: interval)
+                checks += 1
+                // After ~60 s of polling with no result, offer a restart — some macOS
+                // versions don't propagate the grant to an already-running process.
+                if checks == 40 {
+                    DispatchQueue.main.async { PermissionsManager.showRestartAlert() }
                 }
             }
-            DispatchQueue.main.async {
-                completion()
-            }
+            DispatchQueue.main.async { completion() }
         }
     }
 

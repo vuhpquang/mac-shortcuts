@@ -32,13 +32,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             // Permission already granted — start gesture detection immediately.
             startGestureEngine()
         } else {
-            // Permission not yet granted — show the system permission prompt,
-            // then wait in the background until the user grants access.
-            permissionsManager.requestAccessibilityPermission()
+            // Permission not yet granted.
+            // Show a silent warning in the menu bar — do NOT auto-open System Settings,
+            // because the user may have already granted it (each debug build gets a new
+            // code signature so AXIsProcessTrusted() may briefly return false even when
+            // the toggle is ON). The menu bar item lets them open Settings manually if needed.
             menuBarController.showPermissionWarning()
 
             permissionsManager.pollUntilGranted {
-                // This block runs on the main thread once permission is confirmed.
                 self.menuBarController.hidePermissionWarning()
                 self.startGestureEngine()
             }
