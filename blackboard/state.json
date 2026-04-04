@@ -1,0 +1,13 @@
+{
+  "project": { "id": "", "name": "", "goal": "", "status": "init" },
+  "features": [],
+  "tasks": [],
+  "design": [],
+  "architecture": {},
+  "code": [],
+  "bugs": [],
+  "decisions": [],
+  "stakeholder_queue": [],
+  "test_results": [],
+  "write_lock": null
+}
