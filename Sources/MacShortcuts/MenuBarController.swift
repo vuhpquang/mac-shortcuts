@@ -38,12 +38,12 @@ class MenuBarController {
         // Use an SF Symbol hand icon as the menu bar icon.
         // "hand.point.up.left" looks like a pointing finger — fitting for a gesture app.
         // .template rendering mode makes it automatically adapt to light/dark menu bars.
-        if let image = NSImage(systemSymbolName: "hand.point.up.left", accessibilityDescription: "GestureKit") {
+        if let image = NSImage(systemSymbolName: "hand.point.up.left", accessibilityDescription: "Mac Shortcuts") {
             image.isTemplate = true  // Allows macOS to tint it automatically
             button.image = image
         }
 
-        button.toolTip = "GestureKit — Trackpad Gesture Manager"
+        button.toolTip = "Mac Shortcuts — Trackpad Gesture Manager"
         button.action = #selector(statusItemClicked)
         button.target = self
         button.sendAction(on: [.leftMouseUp, .rightMouseUp])
@@ -61,7 +61,7 @@ class MenuBarController {
         menu.addItem(NSMenuItem.separator())
 
         // "Quit GestureKit" exits the app cleanly.
-        let quitItem = NSMenuItem(title: "Quit GestureKit", action: #selector(quitApp), keyEquivalent: "q")
+        let quitItem = NSMenuItem(title: "Quit Mac Shortcuts", action: #selector(quitApp), keyEquivalent: "q")
         quitItem.target = self
         menu.addItem(quitItem)
 
@@ -149,7 +149,7 @@ class MenuBarController {
             backing: .buffered,
             defer: false
         )
-        window.title = "GestureKit Settings"
+        window.title = "Mac Shortcuts Settings"
         window.contentViewController = hostingController
         window.level = .floating     // Stays above normal windows
         window.center()              // Center on screen
