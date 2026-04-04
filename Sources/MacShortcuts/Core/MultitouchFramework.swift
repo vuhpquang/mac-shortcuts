@@ -19,14 +19,11 @@ import Foundation
 // Returns a list of all connected trackpad devices.
 typealias MTDeviceCreateListFn = @convention(c) () -> CFArray?
 
-// Registers a callback function to receive touch data from a specific device.
+// Registers an additional callback to receive touch data from a specific device.
+// NOTE: We intentionally do NOT load MTDeviceStart / MTDeviceStop.
+// The built-in trackpad is already running under macOS control. Calling MTDeviceStart
+// on it again disrupts the system's touch pipeline and kills scrolling/cursor movement.
 typealias MTRegisterContactFrameCallbackFn = @convention(c) (MTDevice, MTContactFrameCallback) -> Void
-
-// Starts delivering touch events from a device (like pressing "play").
-typealias MTDeviceStartFn = @convention(c) (MTDevice) -> Void
-
-// Stops delivering touch events from a device (like pressing "stop").
-typealias MTDeviceStopFn = @convention(c) (MTDevice) -> Void
 
 // MARK: - MultitouchFramework Singleton
 
@@ -48,8 +45,6 @@ class MultitouchFramework {
     // They start as nil and are filled in during init() if loading succeeds.
     var MTDeviceCreateList: MTDeviceCreateListFn?
     var MTRegisterContactFrameCallback: MTRegisterContactFrameCallbackFn?
-    var MTDeviceStart: MTDeviceStartFn?
-    var MTDeviceStop: MTDeviceStopFn?
 
     private init() {
         loadFramework()
@@ -86,19 +81,7 @@ class MultitouchFramework {
         }
         MTRegisterContactFrameCallback = unsafeBitCast(registerCallbackPtr, to: MTRegisterContactFrameCallbackFn.self)
 
-        guard let startPtr = dlsym(handle, "MTDeviceStart") else {
-            print("[MacShortcuts] Could not find MTDeviceStart")
-            return
-        }
-        MTDeviceStart = unsafeBitCast(startPtr, to: MTDeviceStartFn.self)
-
-        guard let stopPtr = dlsym(handle, "MTDeviceStop") else {
-            print("[MacShortcuts] Could not find MTDeviceStop")
-            return
-        }
-        MTDeviceStop = unsafeBitCast(stopPtr, to: MTDeviceStopFn.self)
-
-        // All four symbols loaded successfully.
+        // Both symbols loaded successfully.
         isAvailable = true
         print("[MacShortcuts] MultitouchSupport loaded successfully.")
     }

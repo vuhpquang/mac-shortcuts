@@ -1,8 +1,11 @@
 // Core/DeviceMonitor.swift
-// This file listens to your MacBook's trackpad hardware and collects raw finger data.
+// Registers a touch-frame observer on every connected trackpad.
 //
-// It asks MultitouchSupport for all connected trackpad devices, registers a C callback
-// on each, and forwards raw MTFinger arrays to its delegate (GestureRecognizer).
+// KEY RULE: We NEVER call MTDeviceStart or MTDeviceStop.
+// The built-in trackpad (and Magic Trackpad) are already started by macOS.
+// Calling MTDeviceStart again disrupts the system's touch pipeline and kills
+// normal scrolling / cursor movement. We only ADD our callback as an extra
+// observer on top of the already-running device — this is safe and non-destructive.
 
 import Foundation
 
@@ -13,8 +16,8 @@ protocol DeviceMonitorDelegate: AnyObject {
 }
 
 // MARK: - Module-level monitor reference
-// C callbacks cannot capture Swift objects. We keep a module-level weak reference
-// to the active DeviceMonitor so the @convention(c) callback can reach it safely.
+// @convention(c) callbacks cannot capture Swift objects.
+// We hold a module-level weak reference so the C callback can reach the monitor.
 private weak var _activeMonitor: DeviceMonitor?
 
 // MARK: - DeviceMonitor
@@ -22,12 +25,9 @@ private weak var _activeMonitor: DeviceMonitor?
 class DeviceMonitor {
 
     weak var delegate: DeviceMonitorDelegate?
-
-    /// Stored as UInt because MTDevice = UInt (the integer bit-pattern of the C pointer).
-    private var devices: [MTDevice] = []
     private(set) var isRunning = false
 
-    // MARK: - Lifecycle
+    // MARK: - Start
 
     func start() {
         let fw = MultitouchFramework.shared
@@ -37,11 +37,13 @@ class DeviceMonitor {
         }
         guard !isRunning else { return }
 
+        // Publish self so the C callback can find us.
         _activeMonitor = self
 
-        // MTDeviceCreateList returns a CFArray whose elements are opaque C device pointers.
-        // We cannot bridge CFArray → [UInt] automatically; instead we iterate with
-        // CFArrayGetValueAtIndex and convert each raw pointer to UInt (same bit width).
+        // Get all connected trackpad devices from MultitouchSupport.
+        // MTDeviceCreateList returns a CFArray of opaque C device references.
+        // We must iterate with CFArrayGetValueAtIndex — Swift's automatic CFArray
+        // bridging does not know how to convert opaque pointers to UInt.
         guard let cfArray = fw.MTDeviceCreateList?() else {
             print("[MacShortcuts] DeviceMonitor: MTDeviceCreateList returned nil.")
             return
@@ -53,28 +55,27 @@ class DeviceMonitor {
             return
         }
 
+        var registered = 0
         for i in 0..<count {
-            // CFArrayGetValueAtIndex gives us an UnsafeRawPointer to the C device ref.
             guard let rawPtr = CFArrayGetValueAtIndex(cfArray, i) else { continue }
-            // Reinterpret the pointer as UInt — same bit pattern, different Swift type.
-            // MTDevice = UInt, so the C functions receive the correct pointer value.
+            // Convert the opaque C pointer to UInt (MTDevice) — same bit pattern, 64-bit safe.
             let device = UInt(bitPattern: rawPtr)
-            devices.append(device)
+            // Register our observer. This ADDS to the existing callback chain;
+            // it does NOT replace the system's touch processing.
             fw.MTRegisterContactFrameCallback?(device, deviceTouchCallback)
-            fw.MTDeviceStart?(device)
+            registered += 1
         }
 
         isRunning = true
-        print("[MacShortcuts] DeviceMonitor: Started monitoring \(devices.count) device(s).")
+        print("[MacShortcuts] DeviceMonitor: Registered on \(registered) device(s).")
     }
 
+    // MARK: - Stop
+
     func stop() {
-        let fw = MultitouchFramework.shared
-        guard fw.isAvailable, isRunning else { return }
-        for device in devices {
-            fw.MTDeviceStop?(device)
-        }
-        devices.removeAll()
+        // We cannot easily unregister a C callback from MultitouchSupport.
+        // Clearing _activeMonitor is sufficient: the C callback checks it first
+        // and returns immediately if nil, so no further events are processed.
         _activeMonitor = nil
         isRunning = false
         print("[MacShortcuts] DeviceMonitor: Stopped.")
