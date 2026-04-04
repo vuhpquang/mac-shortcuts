@@ -57,7 +57,7 @@ struct SettingsView: View {
                 .frame(width: 32, height: 32)
                 .foregroundColor(.accentColor)
 
-            Text("GestureKit Settings")
+            Text("Mac Shortcuts Settings")
                 .font(.title2)
                 .fontWeight(.semibold)
 
@@ -125,6 +125,32 @@ private struct GestureSlotRow: View {
     /// Changing this automatically triggers .onChange(of: mapping) in SettingsView.
     @Binding var action: GestureAction
 
+    // Normalizes the action so the Picker always highlights the correct row.
+    // openApp("com.foo") → openApp("") for comparison; keystroke("x",[]) → keystroke("","[])
+    // On set, we preserve any existing associated value when re-selecting the same category.
+    private var normalizedActionBinding: Binding<GestureAction> {
+        Binding(
+            get: {
+                switch action {
+                case .openApp:   return .openApp(bundleID: "")
+                case .keystroke: return .keystroke(key: "", modifiers: [])
+                default:         return action
+                }
+            },
+            set: { newValue in
+                switch newValue {
+                case .openApp:
+                    // Keep existing bundleID if we're already in openApp mode.
+                    if case .openApp = action { } else { action = .openApp(bundleID: "") }
+                case .keystroke:
+                    if case .keystroke = action { } else { action = .keystroke(key: "", modifiers: []) }
+                default:
+                    action = newValue
+                }
+            }
+        )
+    }
+
     var body: some View {
         HStack {
             // Gesture label — fixed width so all pickers line up neatly.
@@ -135,8 +161,9 @@ private struct GestureSlotRow: View {
             Spacer()
 
             // Dropdown picker showing all available actions.
-            // .menu style makes it a compact dropdown (not a segmented control).
-            Picker("", selection: $action) {
+            // We use a normalizing binding so that openApp("com.foo") and
+            // openApp("") both match the same picker row, preventing a blank selection.
+            Picker("", selection: normalizedActionBinding) {
                 ForEach(GestureAction.allCases, id: \.self) { gestureAction in
                     Text(gestureAction.displayName)
                         .tag(gestureAction)
