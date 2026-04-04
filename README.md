@@ -1,4 +1,4 @@
-# GestureKit
+# Mac Shortcuts
 
 A macOS menu bar app that lets you map multitouch trackpad gestures to system actions — like middle-clicking, opening Mission Control, or launching apps — without lifting your fingers from the trackpad.
 
@@ -14,37 +14,37 @@ A macOS menu bar app that lets you map multitouch trackpad gestures to system ac
 
 ## Installation
 
-1. **Download** `GestureKit.dmg` from the releases page.
-2. **Open the DMG** by double-clicking it — a window appears with the GestureKit icon.
-3. **Drag GestureKit** to the **Applications** folder shortcut in the DMG window.
+1. **Download** `Mac Shortcuts.dmg` from the releases page.
+2. **Open the DMG** by double-clicking it — a window appears with the Mac Shortcuts icon.
+3. **Drag Mac Shortcuts** to the **Applications** folder shortcut in the DMG window.
 4. **Eject the DMG** by right-clicking it in Finder and choosing "Eject".
-5. **Open GestureKit** from your Applications folder.
+5. **Open Mac Shortcuts** from your Applications folder.
 
-> If macOS says "GestureKit cannot be opened because the developer cannot be verified", go to
+> If macOS says "Mac Shortcuts cannot be opened because the developer cannot be verified", go to
 > **System Settings → Privacy & Security → scroll down → click "Open Anyway"**.
 
 ---
 
 ## Granting Accessibility Permission
 
-GestureKit needs **Accessibility access** to simulate mouse clicks and keyboard shortcuts on your behalf. Without it, gestures won't do anything.
+Mac Shortcuts needs **Accessibility access** to simulate mouse clicks and keyboard shortcuts on your behalf. Without it, gestures won't do anything.
 
 **How to grant permission:**
 
-1. Open **GestureKit** — you'll see its hand icon appear in the menu bar (top right of your screen).
+1. Open **Mac Shortcuts** — you'll see its hand icon appear in the menu bar (top right of your screen).
 2. A dialog may appear automatically asking for Accessibility access. Click **"Open System Settings"**.
 3. If no dialog appears, go to:
    **System Settings → Privacy & Security → Accessibility**
-4. Find **GestureKit** in the list and **toggle it ON**.
+4. Find **Mac Shortcuts** in the list and **toggle it ON**.
 5. You may need to enter your Mac password.
 
-Once granted, GestureKit activates automatically — no restart needed.
+Once granted, Mac Shortcuts activates automatically — no restart needed.
 
 ---
 
 ## Default Gesture Mappings
 
-Out of the box, GestureKit comes pre-configured with two gestures:
+Out of the box, Mac Shortcuts comes pre-configured with two gestures:
 
 | Gesture                    | Default Action    |
 |----------------------------|-------------------|
@@ -86,10 +86,10 @@ Out of the box, GestureKit comes pre-configured with two gestures:
 
 ---
 
-## Quitting GestureKit
+## Quitting Mac Shortcuts
 
 1. Click the **hand icon** in the menu bar.
-2. Choose **Quit GestureKit**.
+2. Choose **Quit Mac Shortcuts**.
 
 Your settings are automatically saved and will be restored next time you launch.
 
@@ -101,9 +101,9 @@ Your settings are automatically saved and will be restored next time you launch.
 → Make sure Accessibility permission is granted (see above). The menu bar icon will show an orange tint and an "Enable Accessibility..." item if permission is missing.
 
 **The app doesn't appear in the Dock**
-→ That's normal! GestureKit is designed to live only in the menu bar, not the Dock. Look for the hand icon in the top-right area of your screen.
+→ That's normal! Mac Shortcuts is designed to live only in the menu bar, not the Dock. Look for the hand icon in the top-right area of your screen.
 
-**I don't see the GestureKit icon in the menu bar**
+**I don't see the Mac Shortcuts icon in the menu bar**
 → On Macs with a notch or many menu bar icons, some icons may be hidden. Try scrolling with two fingers in the menu bar area, or use a menu bar manager app to make room.
 
 **App Expose or Show Desktop isn't responding**
@@ -113,18 +113,18 @@ Your settings are automatically saved and will be restored next time you launch.
 
 ## Privacy
 
-GestureKit does not connect to the internet, does not send any data anywhere, and does not log your gestures. All settings are stored locally on your Mac in your user preferences (`~/Library/Preferences/`).
+Mac Shortcuts does not connect to the internet, does not send any data anywhere, and does not log your gestures. All settings are stored locally on your Mac in your user preferences (`~/Library/Preferences/`).
 
 ---
 
 ## Building from Source
 
-If you want to build GestureKit yourself:
+If you want to build Mac Shortcuts yourself:
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourname/gesturekit.git
-cd gesturekit
+git clone https://github.com/vuhpquang/mac-shortcuts.git
+cd mac-shortcuts
 
 # Build using Swift Package Manager
 swift build -c release
@@ -135,6 +135,39 @@ swift build -c release
 
 See `build.sh` for full distribution build instructions including code signing and notarization.
 
+### Running Locally (development build)
+
+```bash
+# Debug build (faster compile, verbose logs)
+swift build
+
+# Run directly from the build output
+.build/debug/MacShortcuts
+```
+
+When running a debug build, Mac Shortcuts behaves exactly like the release version. It will appear in the menu bar and request Accessibility permission as normal. To quit, use the menu bar icon → **Quit Mac Shortcuts**, or press `Ctrl+C` in the terminal.
+
+> **Tip:** You can run multiple instances from different branches by building each one and launching from its own `.build/` path.
+
+### Coding & Debugging in Xcode
+
+Mac Shortcuts uses Swift Package Manager, so Xcode opens it without any extra setup:
+
+```bash
+# Open the package in Xcode
+open Package.swift
+```
+
+Xcode will resolve the package and show the full source tree under **Sources/MacShortcuts/**.
+
+**Useful debug tips:**
+
+- **Print logging** — every major component (`DeviceMonitor`, `GestureRecognizer`, `GestureCoordinator`) emits `[MacShortcuts]`-prefixed log lines. Run the app from Xcode and watch the console (View → Debug Area → Activate Console).
+- **Breakpoints** — set breakpoints inside `GestureRecognizer.swift` on `didReceiveFingers` or the gesture-emit calls to inspect live finger data as you move on the trackpad.
+- **Accessibility in the debugger** — macOS may require you to add `Xcode` (or your terminal app) to the Accessibility list, not just Mac Shortcuts, when running under the debugger. Go to **System Settings → Privacy & Security → Accessibility** and add both.
+- **Simulating gestures without a trackpad** — there is no simulator for MultitouchSupport. You need a physical trackpad. A Magic Trackpad connected via USB or Bluetooth works the same as a built-in one.
+- **Scheme settings** — in Xcode, select the **MacShortcuts** scheme and go to **Edit Scheme → Run → Arguments** to pass environment variables (e.g., `NOTARIZE=1` for a full distribution build test).
+
 ---
 
-*GestureKit — making your trackpad work harder for you.*
+*Mac Shortcuts — making your trackpad work harder for you.*

@@ -58,7 +58,7 @@ struct GestureMapping: Codable, Equatable {
             return try JSONDecoder().decode(GestureMapping.self, from: data)
         } catch {
             // Saved data is invalid or from an old version — fall back to defaults.
-            print("[GestureKit] GestureMapping: Could not decode saved mapping (\(error)). Using defaults.")
+            print("[MacShortcuts] GestureMapping: Could not decode saved mapping (\(error)). Using defaults.")
             return .defaults
         }
     }
@@ -70,7 +70,7 @@ struct GestureMapping: Codable, Equatable {
             let data = try JSONEncoder().encode(self)
             UserDefaults.standard.set(data, forKey: GestureMapping.storageKey)
         } catch {
-            print("[GestureKit] GestureMapping: Could not encode mapping for saving (\(error)).")
+            print("[MacShortcuts] GestureMapping: Could not encode mapping for saving (\(error)).")
         }
     }
 

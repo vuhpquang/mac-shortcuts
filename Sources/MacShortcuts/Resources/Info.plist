@@ -2,7 +2,7 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
   Info.plist
-  This file tells macOS important things about GestureKit:
+  This file tells macOS important things about Mac Shortcuts:
   - LSUIElement=YES means the app has NO Dock icon (it lives only in the menu bar)
   - NSPrincipalClass points macOS to AppDelegate as the starting point of the app
   - NSAccessibilityUsageDescription explains to the user WHY we need Accessibility access
@@ -12,11 +12,11 @@
 <dict>
     <!-- App name shown in menus and dialogs -->
     <key>CFBundleName</key>
-    <string>GestureKit</string>
+    <string>Mac Shortcuts</string>
 
     <!-- Unique identifier for the app (reverse-DNS style) -->
     <key>CFBundleIdentifier</key>
-    <string>com.gesturekit.app</string>
+    <string>com.mac-shortcuts.app</string>
 
     <!-- App version -->
     <key>CFBundleShortVersionString</key>
@@ -44,7 +44,7 @@
     <!-- Explanation shown to the user when we request Accessibility permission.
          macOS REQUIRES this key when you request Accessibility access. -->
     <key>NSAccessibilityUsageDescription</key>
-    <string>GestureKit needs Accessibility access to simulate mouse clicks and keyboard shortcuts when you perform trackpad gestures.</string>
+    <string>Mac Shortcuts needs Accessibility access to simulate mouse clicks and keyboard shortcuts when you perform trackpad gestures.</string>
 
     <!-- Minimum macOS version required -->
     <key>LSMinimumSystemVersion</key>

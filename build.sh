@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # build.sh
-# This script builds GestureKit (an SPM-based macOS app), signs the binary,
+# This script builds MacShortcuts (an SPM-based macOS app), signs the binary,
 # packages it into a DMG, and optionally submits it for notarization.
 #
 # What it does, step by step:
-#   1. Compiles GestureKit as a universal binary (Apple Silicon + Intel) using `swift build`
+#   1. Compiles MacShortcuts as a universal binary (Apple Silicon + Intel) using `swift build`
 #   2. Code-signs the compiled binary with your Developer ID certificate
 #   3. Creates a DMG installer file (the kind you download and drag to Applications)
 #   4. Optionally submits the DMG to Apple for notarization (set NOTARIZE=1 to enable)
@@ -25,7 +25,7 @@
 #   TEAM_ID            — Your Developer ID Application certificate name.
 #                        Example: "Developer ID Application: Jane Smith (ABCD1234EF)"
 #   NOTARIZE           — Set to 1 to submit the DMG for notarization after packaging.
-#   NOTARYTOOL_PROFILE — Keychain profile name used by xcrun notarytool (default: GestureKit)
+#   NOTARYTOOL_PROFILE — Keychain profile name used by xcrun notarytool (default: MacShortcuts)
 
 # Exit immediately if any command fails, if any variable is unset, or if a pipe fails.
 # This prevents a broken build from silently continuing past errors.
@@ -42,14 +42,14 @@ TEAM_ID="${TEAM_ID:-Developer ID Application: YOUR NAME (TEAMID)}"
 
 # Keychain profile created with `xcrun notarytool store-credentials`.
 # Only used when NOTARIZE=1.
-NOTARYTOOL_PROFILE="${NOTARYTOOL_PROFILE:-GestureKit}"
+NOTARYTOOL_PROFILE="${NOTARYTOOL_PROFILE:-MacShortcuts}"
 
 # Whether to notarize after packaging (0 = skip, 1 = notarize).
 NOTARIZE="${NOTARIZE:-0}"
 
 # The name of the binary produced by `swift build`.
 # This must match the executable target name in Package.swift.
-BINARY_NAME="GestureKit"
+BINARY_NAME="MacShortcuts"
 
 # Where `swift build` places the universal Release binary when targeting both archs.
 BINARY_PATH=".build/apple/Products/Release/${BINARY_NAME}"
@@ -75,7 +75,7 @@ mkdir -p "${BUILD_DIR}"
 # `--arch arm64 --arch x86_64` produces a "universal" (fat) binary that
 # runs natively on both Apple Silicon Macs and older Intel Macs.
 # The compiled binary is written to:
-#   .build/apple/Products/Release/GestureKit
+#   .build/apple/Products/Release/MacShortcuts
 # ─────────────────────────────────────────────────────────
 
 echo "==> Building universal release binary..."
@@ -173,7 +173,7 @@ echo "==> DMG created at: ${DMG_PATH}"
 # software") on the user's first launch.
 #
 # Requires NOTARIZE=1 and a valid keychain profile set up with:
-#   xcrun notarytool store-credentials "GestureKit" \
+#   xcrun notarytool store-credentials "MacShortcuts" \
 #     --apple-id "you@example.com" \
 #     --team-id "TEAMID" \
 #     --password "xxxx-xxxx-xxxx-xxxx"

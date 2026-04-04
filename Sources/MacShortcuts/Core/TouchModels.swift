@@ -45,11 +45,11 @@ struct MTFinger {
     var substate: Int32         // Additional state detail (used internally by Apple)
 }
 
-// MARK: - MTDevice (Opaque Pointer)
+// MARK: - MTDevice
 // An MTDevice is a reference to a physical trackpad device.
-// We treat it as an opaque pointer — we never look inside it directly,
-// just pass it to/from the MultitouchSupport framework functions.
-typealias MTDevice = OpaquePointer
+// We alias it to UInt (an integer-sized opaque handle) so it is representable
+// in @convention(c) callbacks on both arm64 and x86_64.
+typealias MTDevice = UInt
 
 // MARK: - FingerState
 // A human-readable Swift enum that maps the raw integer state codes
@@ -68,16 +68,14 @@ enum FingerState: Int32 {
 // of finger data (a "frame") arrives from the trackpad hardware.
 // We register a function matching this signature via MTRegisterContactFrameCallback.
 //
-// Parameters:
-//   device    — which trackpad sent the data
-//   data      — pointer to an array of MTFinger structs
-//   fingerCount — how many fingers are in the array
-//   timestamp — when this frame was captured (in seconds since boot)
-//   frame     — frame sequence number
+// All parameter types must be C-representable for @convention(c) to compile.
+// MTContactFrameCallback uses UnsafeRawPointer for the finger array because
+// UnsafeMutablePointer<MTFinger> is not C-ABI representable in @convention(c)
+// with Swift 6. We bind the raw pointer to MTFinger inside the callback body.
 typealias MTContactFrameCallback = @convention(c) (
-    MTDevice,           // The trackpad device that sent the data
-    UnsafeMutablePointer<MTFinger>?,  // Array of finger data
-    Int32,              // Number of fingers in the array
-    Double,             // Timestamp (seconds)
-    Int32               // Frame number
+    MTDevice,          // The trackpad device handle
+    UnsafeRawPointer,  // Raw pointer to the MTFinger array (cast in callback)
+    Int32,             // Number of fingers in the array
+    Double,            // Timestamp (seconds since boot)
+    Int32              // Frame sequence number
 ) -> Void
