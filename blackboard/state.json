@@ -1,13 +1,807 @@
 {
-  "project": { "id": "", "name": "", "goal": "", "status": "init" },
-  "features": [],
-  "tasks": [],
-  "design": [],
-  "architecture": {},
-  "code": [],
-  "bugs": [],
-  "decisions": [],
+  "project": {
+    "id": "gesturekit",
+    "name": "gesturekit",
+    "goal": "A macOS menu bar app that detects multitouch trackpad gestures and maps them to system actions (middle click, Mission Control, etc.)",
+    "status": "qc_passed"
+  },
+  "features": [
+    {
+      "id": "F01",
+      "title": "Project Skeleton",
+      "description": "Bootstrap the Xcode project with AppDelegate (LSUIElement=YES, no Dock icon), MenuBarController (NSStatusItem + menu), and PermissionsManager (Accessibility prompt and status check). Establishes the runnable shell that all later phases build on.",
+      "priority": "high",
+      "status": "committed"
+    },
+    {
+      "id": "F02",
+      "title": "MultitouchSupport Bridge",
+      "description": "Load Apple's private MultitouchSupport framework at runtime via dlopen/dlsym. Implement Core/MultitouchFramework (function bindings), TouchModels (MTPoint, MTFinger, MTDevice structs), and DeviceMonitor (register/deregister callbacks per connected trackpad). Required before any gesture detection can occur.",
+      "priority": "high",
+      "status": "committed"
+    },
+    {
+      "id": "F03",
+      "title": "Gesture Recognizer",
+      "description": "Implement Core/GestureRecognizer that consumes raw touch frames from DeviceMonitor and emits named gesture events: ThreeFingerTap, ThreeFingerClick (sustained contact), and ForceClickCorner for all four screen corners. Includes timing thresholds and corner-zone geometry.",
+      "priority": "high",
+      "status": "committed"
+    },
+    {
+      "id": "F04",
+      "title": "Action Executor & Gesture Mapping",
+      "description": "Implement Core/ActionExecutor with handlers for all six action types (middleClick, keystroke, openApp, missionControl, appExpose, showDesktop). Add GestureMapping model and UserDefaults-backed persistence so each of the six gesture slots stores its configured action across launches.",
+      "priority": "high",
+      "status": "committed"
+    },
+    {
+      "id": "F05",
+      "title": "System Wiring (GestureCoordinator)",
+      "description": "Create the GestureCoordinator singleton that connects GestureRecognizer events to ActionExecutor calls using the active GestureMapping. Wire AppDelegate to instantiate and start GestureCoordinator on launch, applying default mapping (threeFingerTap \u2192 middleClick, forceClickTopLeft \u2192 missionControl) on first run.",
+      "priority": "high",
+      "status": "committed"
+    },
+    {
+      "id": "F06",
+      "title": "Settings UI",
+      "description": "Build a SwiftUI SettingsView (480x520, non-resizable) surfaced from the menu bar. Displays all six gesture slots (ThreeFingerTap, ThreeFingerClick, ForceClickCorner \u00d74) each with an action picker. Changes are persisted immediately via GestureMapping/UserDefaults and take effect without restart.",
+      "priority": "medium",
+      "status": "committed"
+    },
+    {
+      "id": "F07",
+      "title": "Build & Distribution",
+      "description": "Create build.sh to compile a release build, package a signed/notarized DMG for direct distribution (no App Store). Include a README covering installation, Accessibility permission grant, and basic usage. Validates the full delivery artifact.",
+      "priority": "medium",
+      "status": "committed"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "T01",
+      "feature_id": "F01",
+      "title": "Create Xcode project with Info.plist (LSUIElement=YES)",
+      "description": "Initialise the GestureKit Xcode project targeting macOS 13+, universal binary (Apple Silicon + Intel). Set LSUIElement=YES and LSBackgroundOnly=NO in Info.plist so the app has no Dock icon and no default menu bar. Remove the Main storyboard entry and set NSPrincipalClass to AppDelegate.",
+      "status": "committed"
+    },
+    {
+      "id": "T02",
+      "feature_id": "F01",
+      "title": "Implement AppDelegate.swift",
+      "description": "Create AppDelegate conforming to NSApplicationDelegate. In applicationDidFinishLaunching: instantiate MenuBarController and PermissionsManager, request Accessibility access if not already granted, and store strong references to both so they are not deallocated.",
+      "status": "committed"
+    },
+    {
+      "id": "T03",
+      "feature_id": "F01",
+      "title": "Implement MenuBarController.swift",
+      "description": "Create MenuBarController that owns an NSStatusItem with a fixed-length icon (hand.point.up.left or similar SF Symbol). Build the NSMenu with items: 'Settings\u2026', separator, 'Quit GestureKit'. Wire 'Settings\u2026' action (stub for now) and 'Quit' to NSApp.terminate. Expose a method to update the icon tint when permissions are missing.",
+      "status": "committed"
+    },
+    {
+      "id": "T04",
+      "feature_id": "F01",
+      "title": "Implement PermissionsManager.swift",
+      "description": "Create PermissionsManager with a static func isAccessibilityGranted() -> Bool using AXIsProcessTrusted(). Add requestAccessibilityPermission() that calls AXIsProcessTrustedWithOptions with kAXTrustedCheckOptionPrompt=true. Provide a pollUntilGranted(completion:) method that checks every 2 s on a background queue and calls completion on the main thread once access is confirmed.",
+      "status": "committed"
+    },
+    {
+      "id": "T05",
+      "feature_id": "F02",
+      "title": "Implement Core/MultitouchFramework.swift",
+      "description": "Use dlopen to load /System/Library/PrivateFrameworks/MultitouchSupport.framework/MultitouchSupport at runtime. Use dlsym to bind the following symbols to typed Swift function vars: MTDeviceCreateList, MTRegisterContactFrameCallback, MTDeviceStart, MTDeviceStop. Guard all lookups with fatalError/log if a symbol is missing. Expose a singleton MultitouchFramework.shared that holds the handle and the resolved function pointers.",
+      "status": "committed"
+    },
+    {
+      "id": "T06",
+      "feature_id": "F02",
+      "title": "Define Core/TouchModels.swift",
+      "description": "Declare the C-compatible structs and type aliases required to interop with MultitouchSupport: MTPoint (x, y Float), MTVector (position, velocity MTPoint), MTFinger (frame, identifier, normalized MTVector, size, angle, majorAxis, minorAxis, zTotal, state Int32, substate Int32), and MTDevice as an opaque pointer typealias. Add a Swift-friendly FingerState enum mirroring the integer state constants (touching, moving, stationary, lifted).",
+      "status": "committed"
+    },
+    {
+      "id": "T07",
+      "feature_id": "F02",
+      "title": "Implement Core/DeviceMonitor.swift",
+      "description": "Create DeviceMonitor that calls MTDeviceCreateList to enumerate trackpads, registers a C-compatible MTContactFrameCallback for each device using MTRegisterContactFrameCallback, then calls MTDeviceStart. The callback converts the raw finger array to [MTFinger] and forwards it via a delegate protocol (DeviceMonitorDelegate) with method didReceiveFingers(_:[MTFinger], timestamp:Double). Implement start() and stop() lifecycle methods.",
+      "status": "committed"
+    },
+    {
+      "id": "T08",
+      "feature_id": "F03",
+      "title": "Define gesture event types in Core/GestureRecognizer.swift",
+      "description": "Declare the GestureEvent enum with cases: threeFingerTap, threeFingerClick, forceClickCorner(Corner). Declare the Corner enum with cases topLeft, topRight, bottomLeft, bottomRight. Define GestureRecognizerDelegate protocol with method didRecognize(gesture: GestureEvent).",
+      "status": "committed"
+    },
+    {
+      "id": "T09",
+      "feature_id": "F03",
+      "title": "Implement ThreeFingerTap detection in GestureRecognizer",
+      "description": "In GestureRecognizer (which conforms to DeviceMonitorDelegate), track consecutive frames where exactly 3 fingers are in the 'touching' state. Emit threeFingerTap when the contact duration is less than a configurable tapMaxDuration (default 0.18 s) and all three fingers lift within the same frame window. Debounce so only one event fires per gesture cycle.",
+      "status": "committed"
+    },
+    {
+      "id": "T10",
+      "feature_id": "F03",
+      "title": "Implement ThreeFingerClick (sustained) detection in GestureRecognizer",
+      "description": "Extend GestureRecognizer to emit threeFingerClick when exactly 3 fingers remain in contact for longer than clickMinDuration (default 0.18 s) without lifting. Fire the event once at threshold crossing, not repeatedly. Reset state on lift.",
+      "status": "committed"
+    },
+    {
+      "id": "T11",
+      "feature_id": "F03",
+      "title": "Implement ForceClickCorner detection in GestureRecognizer",
+      "description": "Extend GestureRecognizer to detect a single-finger touch whose normalised position falls within a corner zone (configurable size, default 0.15 of screen edge) and whose zTotal exceeds a forceThreshold (default 0.30). Map the corner geometry to the Corner enum and emit forceClickCorner(.topLeft/.topRight/.bottomLeft/.bottomRight). Ensure the zone check uses the primary display's logical resolution.",
+      "status": "committed"
+    },
+    {
+      "id": "T12",
+      "feature_id": "F04",
+      "title": "Define action model in Core/GestureMapping.swift",
+      "description": "Declare the GestureAction enum with cases: none, middleClick, keystroke(key: String, modifiers: NSEvent.ModifierFlags), openApp(bundleID: String), missionControl, appExpose, showDesktop. Add Codable conformance. Declare GestureMapping struct with six properties \u2014 one GestureAction per gesture slot (threeFingerTap, threeFingerClick, cornerTopLeft, cornerTopRight, cornerBottomLeft, cornerBottomRight) \u2014 also Codable.",
+      "status": "committed"
+    },
+    {
+      "id": "T13",
+      "feature_id": "F04",
+      "title": "Implement UserDefaults persistence in GestureMapping",
+      "description": "Add a static GestureMapping.load() -> GestureMapping that reads and JSON-decodes the value stored under key 'gestureMapping' in UserDefaults.standard, returning GestureMapping.defaults if absent or invalid. Add func save() that JSON-encodes self and stores it under the same key. Define GestureMapping.defaults as the first-run default (threeFingerTap \u2192 .middleClick, cornerTopLeft \u2192 .missionControl, all others \u2192 .none).",
+      "status": "committed"
+    },
+    {
+      "id": "T14",
+      "feature_id": "F04",
+      "title": "Implement Core/ActionExecutor.swift \u2014 middleClick and missionControl",
+      "description": "Create ActionExecutor with an execute(_ action: GestureAction) entry point. Implement middleClick: post CGEvent for mouse button 2 down+up at current cursor position using CGEvent(mouseEventSource:mouseType:mouseCursorPosition:mouseButton:). Implement missionControl: use CGEvent(keyboardEventSource:virtualKey:keyDown:) with kVK_MissionControl (0xA0) or fall back to the Expose shortcut (Ctrl+Up).",
+      "status": "committed"
+    },
+    {
+      "id": "T15",
+      "feature_id": "F04",
+      "title": "Implement Core/ActionExecutor.swift \u2014 keystroke, openApp, appExpose, showDesktop",
+      "description": "Extend ActionExecutor.execute: implement keystroke by posting CGEvent keyboard down+up with the provided key code and modifier flags. Implement openApp via NSWorkspace.shared.openApplication(at:configuration:). Implement appExpose via CGEvent with kVK_AppExposeF10 or the Expos\u00e9 hotkey. Implement showDesktop via CoreGraphics Spaces private API or the F11 shortcut CGEvent.",
+      "status": "committed"
+    },
+    {
+      "id": "T16",
+      "feature_id": "F05",
+      "title": "Implement Core/GestureCoordinator.swift",
+      "description": "Create GestureCoordinator as a singleton (shared) that owns a DeviceMonitor, a GestureRecognizer, and holds the current GestureMapping. Conform GestureCoordinator to GestureRecognizerDelegate: in didRecognize(gesture:) look up the mapped action and call ActionExecutor.shared.execute(_:). Provide start() and stop() methods that forward to DeviceMonitor. Provide updateMapping(_ mapping: GestureMapping) to hot-swap the mapping at runtime.",
+      "status": "committed"
+    },
+    {
+      "id": "T17",
+      "feature_id": "F05",
+      "title": "Wire GestureCoordinator into AppDelegate",
+      "description": "In AppDelegate.applicationDidFinishLaunching: after permissions check, call GestureCoordinator.shared.start(). Load GestureMapping.load() and pass it to GestureCoordinator.shared.updateMapping(_:) so the persisted (or default) mapping is active immediately. If permissions are not yet granted, delay start() until pollUntilGranted fires.",
+      "status": "committed"
+    },
+    {
+      "id": "T18",
+      "feature_id": "F06",
+      "title": "Implement SettingsView.swift \u2014 window scaffold",
+      "description": "Create a SwiftUI SettingsView with a fixed frame of 480\u00d7520 and .fixedSize() or a window style that prevents resizing. Host it in an NSWindow (not a SwiftUI WindowGroup) opened by MenuBarController. Set the window title to 'GestureKit Settings', level .floating, and ensure only one instance can be open at a time (guard with a weak reference in MenuBarController).",
+      "status": "committed"
+    },
+    {
+      "id": "T19",
+      "feature_id": "F06",
+      "title": "Implement SettingsView.swift \u2014 gesture slot rows",
+      "description": "Inside SettingsView, display a VStack of six rows, one per gesture slot: ThreeFingerTap, ThreeFingerClick, Force Click Top-Left, Force Click Top-Right, Force Click Bottom-Left, Force Click Bottom-Right. Each row shows a label and a Picker (menu style) listing all six GestureAction cases with human-readable names. Bind each Picker to the corresponding field of a @State var mapping: GestureMapping.",
+      "status": "committed"
+    },
+    {
+      "id": "T20",
+      "feature_id": "F06",
+      "title": "Implement live persistence in SettingsView",
+      "description": "Add an .onChange(of: mapping) modifier on the root view that calls mapping.save() and GestureCoordinator.shared.updateMapping(mapping) whenever any picker changes. Initialise @State var mapping by calling GestureMapping.load() in the view's init so the UI always reflects the stored state on open.",
+      "status": "committed"
+    },
+    {
+      "id": "T21",
+      "feature_id": "F07",
+      "title": "Create build.sh release build script",
+      "description": "Write build.sh at the project root. It should: run xcodebuild -scheme GestureKit -configuration Release -archivePath build/GestureKit.xcarchive archive, then xcodebuild -exportArchive with an ExportOptions.plist for Developer ID distribution (direct). Sign with codesign --deep --force --verify --sign 'Developer ID Application: \u2026'. Make the script executable and add basic error-exit guards (set -euo pipefail).",
+      "status": "committed"
+    },
+    {
+      "id": "T22",
+      "feature_id": "F07",
+      "title": "Create DMG packaging in build.sh",
+      "description": "Extend build.sh with a step that uses hdiutil to create a read-write DMG, copies the signed GestureKit.app and a symlink to /Applications into it, converts to compressed read-only DMG, and calls xcrun notarytool submit for notarisation followed by xcrun stapler staple. Output the final DMG as build/GestureKit.dmg.",
+      "status": "committed"
+    },
+    {
+      "id": "T23",
+      "feature_id": "F07",
+      "title": "Write README.md",
+      "description": "Create README.md at the project root covering: system requirements (macOS 13+), installation steps (mount DMG, drag to Applications), granting Accessibility permission (System Settings \u2192 Privacy \u2192 Accessibility), default gesture mappings, and how to customise via the Settings menu. Keep language beginner-friendly per stakeholder note.",
+      "status": "committed"
+    }
+  ],
+  "design": [
+    {
+      "feature_id": "F01",
+      "layout_description": "The app presents exclusively as a menu bar item \u2014 no Dock icon, no window on launch. The NSStatusItem sits in the system menu bar and displays a single SF Symbol icon (hand.point.up.left or equivalent). Clicking the icon drops down an NSMenu with three items: 'Settings\u2026' (opens the Settings window), a separator line, and 'Quit GestureKit'. When Accessibility permission is not yet granted an additional item 'Enable Accessibility\u2026' appears at the top of the menu, styled as an attention item (amber tint or warning badge on the icon) to guide the user to System Settings.",
+      "ux_notes": "The icon should use template rendering so it automatically adapts to light/dark menu bar. A subtle amber or orange tint on the icon (or an overlay badge) is the sole indicator that permissions are missing \u2014 no modal alerts on launch. Once permissions are granted the icon reverts to its neutral state without user action. Menu item order follows macOS conventions: destructive/system actions at the bottom. 'Quit' must always be the last item.",
+      "components": [
+        "NSStatusItem (menu bar icon, SF Symbol, template image)",
+        "NSMenu (dropdown)",
+        "NSMenuItem \u2014 'Enable Accessibility\u2026' (conditional, shown only when AXIsProcessTrusted = false)",
+        "NSMenuItem \u2014 'Settings\u2026'",
+        "NSMenuItem.separator()",
+        "NSMenuItem \u2014 'Quit GestureKit'",
+        "PermissionsManager (drives conditional menu item and icon tint)"
+      ]
+    },
+    {
+      "feature_id": "F02",
+      "layout_description": "No user-facing UI. The MultitouchSupport bridge operates entirely in the background. There are no visible controls, indicators, or windows tied to this feature.",
+      "ux_notes": "If the private framework cannot be loaded at runtime (dlopen failure), the app should log to Console and disable gesture detection silently rather than crashing. No error UI is shown to the user; the menu bar icon simply remains inert. This failure case is treated as a developer/diagnostic concern, not a user-actionable one.",
+      "components": [
+        "MultitouchFramework.shared (background singleton, no UI surface)"
+      ]
+    },
+    {
+      "feature_id": "F03",
+      "layout_description": "No user-facing UI. Gesture recognition runs as a background state machine fed by raw touch callbacks. All output is events consumed internally by GestureCoordinator.",
+      "ux_notes": "No visual feedback is given in the UI when a gesture is recognized \u2014 the mapped system action (Mission Control, middle click, etc.) is the feedback. This matches the interaction model of multitouch.app and similar utilities where the gesture effect itself is the confirmation. There is intentionally no 'gesture detected' HUD or notification.",
+      "components": [
+        "GestureRecognizer (background, no UI surface)",
+        "GestureEvent enum (internal event bus)"
+      ]
+    },
+    {
+      "feature_id": "F04",
+      "layout_description": "No user-facing UI for the executor itself. Action execution is silent and immediate. GestureMapping data is surfaced only through the Settings UI (F06) and persisted via UserDefaults.",
+      "ux_notes": "Actions execute at the moment of gesture recognition with no animation, HUD, or audible feedback from the app itself. The OS-level feedback (Mission Control animation, mouse click sound, etc.) is the sole user acknowledgement. If an action fails (e.g., app not found for openApp), the failure is silently swallowed \u2014 no error UI. Persistence is automatic and immediate on Settings change; there is no 'Save' button.",
+      "components": [
+        "ActionExecutor (background, no UI surface)",
+        "GestureMapping (data model, surfaced via SettingsView)"
+      ]
+    },
+    {
+      "feature_id": "F05",
+      "layout_description": "No user-facing UI. GestureCoordinator is a background singleton that wires recognizer events to action execution. The only indirect UI effect is that gestures now produce visible system-level reactions.",
+      "ux_notes": "On first launch the default mapping (ThreeFingerTap \u2192 Middle Click, Force Click Top-Left \u2192 Mission Control) activates silently. The user receives no onboarding tooltip or walkthrough; the assumption is they have read the README or menu prompt. If Accessibility is not yet granted, GestureCoordinator delays start() until permissions are confirmed \u2014 during this window the menu bar 'Enable Accessibility\u2026' item guides the user.",
+      "components": [
+        "GestureCoordinator.shared (background singleton, no UI surface)"
+      ]
+    },
+    {
+      "feature_id": "F06",
+      "layout_description": "A fixed-size NSWindow (480 \u00d7 520 pt, not resizable) hosting a SwiftUI SettingsView. The window is titled 'GestureKit Settings', floats at .floating window level, and is opened by clicking 'Settings\u2026' in the menu bar menu. Only one instance of the window can exist at a time. Layout inside the window: a title area at the top (app name or icon + 'Settings' label), then a Form or VStack containing exactly six gesture-slot rows. Each row is a full-width HStack: a fixed-width Label on the left identifying the gesture (e.g., 'Three Finger Tap', 'Force Click \u2014 Top Left') and a Picker (menuStyle) on the right listing the available actions. Below the six rows a thin separator and a footer note ('Changes take effect immediately') occupy the remaining space. There is no 'Save', 'Cancel', or 'Apply' button.",
+      "ux_notes": "Visual reference: multitouch.app settings panel \u2014 clean, minimal, two-column grid of gesture \u2192 action. Row labels use sentence case. Picker options use human-readable names: 'None', 'Middle Click', 'Mission Control', 'App Expos\u00e9', 'Show Desktop', 'Keystroke\u2026', 'Open App\u2026'. Selecting 'Keystroke\u2026' reveals an inline NSTextField directly beneath the row (or as a sheet) for the user to press the desired key combination. Selecting 'Open App\u2026' opens an NSOpenPanel filtered to .app bundles. The Picker itself stays in menu style (compact, no segmented control). The window should open centered on the primary display or near the menu bar icon. Closing the window does not quit the app. The window's red close button works normally; there is no minimize or zoom button (set styleMask accordingly). Background color follows system window background; no custom chrome.",
+      "components": [
+        "NSWindow (480\u00d7520, .titled, no .resizable, no .miniaturizable, no .fullScreen)",
+        "NSHostingController wrapping SettingsView",
+        "SettingsView (SwiftUI root)",
+        "Header area: app icon (NSImage, 32\u00d732) + Text('GestureKit Settings', font: .title2)",
+        "Divider",
+        "GestureSlotRow (\u00d76) \u2014 each: Label (gesture name, fixed width 200 pt) + Picker (menuStyle, GestureAction)",
+        "Conditional KeystrokeField (NSTextField inline or sheet, shown when action == .keystroke)",
+        "Conditional AppPickerButton (NSOpenPanel trigger, shown when action == .openApp)",
+        "Divider",
+        "Footer Text('Changes take effect immediately', font: .caption, color: .secondary)"
+      ]
+    },
+    {
+      "feature_id": "F07",
+      "layout_description": "No application UI. This feature produces build artifacts (GestureKit.xcarchive, GestureKit.app, GestureKit.dmg) and a README.md. The DMG window (presented by macOS when mounted) shows the GestureKit.app icon and a symlink to /Applications in the standard drag-to-install layout; no custom DMG background is required.",
+      "ux_notes": "The README is the primary onboarding surface for end users who download the DMG. It must cover: minimum macOS version (13+), drag-to-install steps, granting Accessibility permission with exact navigation path (System Settings > Privacy & Security > Accessibility), default gesture mappings table, and how to open Settings to customise. Language should be plain and beginner-friendly per stakeholder note. No in-app onboarding flow is implemented in this version.",
+      "components": [
+        "build.sh (CI/build artifact, not a UI component)",
+        "GestureKit.dmg (distribution artifact, standard macOS DMG layout)",
+        "README.md (text documentation)"
+      ]
+    }
+  ],
+  "architecture": {
+    "stack": {
+      "language": "Swift 5.9+",
+      "ui_framework": "SwiftUI (settings panel only; all other UI is AppKit/NSStatusItem)",
+      "app_framework": "AppKit \u2014 NSApplicationDelegate lifecycle (no SwiftUI App protocol)",
+      "minimum_os": "macOS 13.0 (Ventura)",
+      "architectures": [
+        "arm64",
+        "x86_64"
+      ],
+      "private_framework": "MultitouchSupport (loaded at runtime via dlopen/dlsym \u2014 never linked at build time)",
+      "system_frameworks": [
+        "AppKit",
+        "SwiftUI",
+        "CoreGraphics",
+        "ApplicationServices",
+        "Foundation"
+      ],
+      "persistence": "UserDefaults.standard (JSON-encoded GestureMapping under key 'gestureMapping')",
+      "distribution": "Direct DMG \u2014 Developer ID signed + notarized, no App Store, no sandbox entitlement",
+      "build_tool": "xcodebuild + custom build.sh"
+    },
+    "folder_structure": {
+      "root": "projects/gesturekit/",
+      "tree": [
+        "GestureKit.xcodeproj/",
+        "GestureKit/",
+        "GestureKit/AppDelegate.swift",
+        "GestureKit/MenuBarController.swift",
+        "GestureKit/PermissionsManager.swift",
+        "GestureKit/Core/MultitouchFramework.swift",
+        "GestureKit/Core/TouchModels.swift",
+        "GestureKit/Core/DeviceMonitor.swift",
+        "GestureKit/Core/GestureRecognizer.swift",
+        "GestureKit/Core/GestureAction.swift",
+        "GestureKit/Core/GestureMapping.swift",
+        "GestureKit/Core/ActionExecutor.swift",
+        "GestureKit/Core/GestureCoordinator.swift",
+        "GestureKit/UI/SettingsView.swift",
+        "GestureKit/Resources/Info.plist",
+        "GestureKit/Resources/Assets.xcassets",
+        "build.sh",
+        "README.md"
+      ],
+      "notes": {
+        "AppDelegate.swift": "NSApplicationDelegate entry point \u2014 owns MenuBarController, PermissionsManager, and starts GestureCoordinator after permissions confirmed.",
+        "MenuBarController.swift": "Owns NSStatusItem + NSMenu. Opens SettingsView in a floating NSWindow. Manages icon tint for permission state.",
+        "PermissionsManager.swift": "AXIsProcessTrusted checks, AXIsProcessTrustedWithOptions prompt, polling loop on background queue.",
+        "Core/MultitouchFramework.swift": "dlopen handle + dlsym-resolved typed function pointers (MTDeviceCreateList, MTRegisterContactFrameCallback, MTDeviceStart, MTDeviceStop). Singleton. Degrades gracefully on dlopen failure.",
+        "Core/TouchModels.swift": "C-layout structs: MTPoint, MTVector, MTFinger. Opaque MTDevice typealias. Swift FingerState enum.",
+        "Core/DeviceMonitor.swift": "Enumerates trackpads, registers C-compatible callback, forwards [MTFinger] to DeviceMonitorDelegate. start()/stop() lifecycle.",
+        "Core/GestureRecognizer.swift": "GestureEvent enum (threeFingerTap, threeFingerClick, forceClickCorner(Corner)). Corner enum. State machine over touch frames. Conforms to DeviceMonitorDelegate. Emits via GestureRecognizerDelegate.",
+        "Core/GestureAction.swift": "GestureAction enum with all action cases \u2014 Codable.",
+        "Core/GestureMapping.swift": "GestureMapping struct (six GestureAction slots) \u2014 Codable. Static load()/save() via UserDefaults. Static defaults property.",
+        "Core/ActionExecutor.swift": "Singleton. execute(_ action: GestureAction) dispatches to CGEvent / NSWorkspace implementations per action case.",
+        "Core/GestureCoordinator.swift": "Singleton. Owns DeviceMonitor + GestureRecognizer. Implements GestureRecognizerDelegate \u2192 dispatches to ActionExecutor using current GestureMapping. updateMapping() hot-swaps at runtime.",
+        "UI/SettingsView.swift": "SwiftUI view, 480\u00d7520. @State var mapping: GestureMapping. Six GestureSlotRow pickers. .onChange persists and updates coordinator immediately.",
+        "Resources/Info.plist": "LSUIElement=YES, LSBackgroundOnly=NO, NSPrincipalClass=AppDelegate, no Main storyboard, NSAccessibilityUsageDescription.",
+        "build.sh": "xcodebuild archive + exportArchive, codesign, hdiutil DMG creation, notarytool submit, stapler staple."
+      }
+    },
+    "api_endpoints": [],
+    "db_schema": {
+      "storage": "UserDefaults.standard",
+      "keys": [
+        {
+          "key": "gestureMapping",
+          "type": "Data (JSON-encoded GestureMapping)",
+          "description": "Serialised GestureMapping struct storing one GestureAction per gesture slot. Written by GestureMapping.save(), read by GestureMapping.load(). Absent on first launch \u2014 falls back to GestureMapping.defaults.",
+          "schema": {
+            "threeFingerTap": "GestureAction",
+            "threeFingerClick": "GestureAction",
+            "cornerTopLeft": "GestureAction",
+            "cornerTopRight": "GestureAction",
+            "cornerBottomLeft": "GestureAction",
+            "cornerBottomRight": "GestureAction"
+          }
+        }
+      ],
+      "gesture_action_cases": [
+        "none",
+        "middleClick",
+        "keystroke(key: String, modifiers: NSEvent.ModifierFlags)",
+        "openApp(bundleID: String)",
+        "missionControl",
+        "appExpose",
+        "showDesktop"
+      ]
+    },
+    "patterns": [
+      {
+        "id": "P01",
+        "name": "Callback-based touch event pipeline",
+        "description": "MultitouchSupport delivers touch data through a C-style callback registered via MTRegisterContactFrameCallback. DeviceMonitor registers a @convention(c) Swift closure (or a C function bridged via a context pointer) for each trackpad device. The raw MTFinger array is converted to a Swift [MTFinger] value type and forwarded to the DeviceMonitorDelegate (GestureRecognizer) on the callback thread. GestureRecognizer processes frames synchronously in its didReceiveFingers(_:timestamp:) method and emits GestureEvents to its own delegate (GestureCoordinator) on the same thread. Actions triggered by GestureCoordinator that interact with UI (e.g., opening a window) must dispatch to DispatchQueue.main.",
+        "components": [
+          "MultitouchFramework",
+          "DeviceMonitor",
+          "GestureRecognizer",
+          "GestureCoordinator"
+        ],
+        "rationale": "Mirrors the lowest-latency path available for private multitouch data. Keeping the pipeline synchronous on the callback thread avoids queueing latency for tap/click discrimination."
+      },
+      {
+        "id": "P02",
+        "name": "Singleton GestureCoordinator",
+        "description": "GestureCoordinator.shared is the single point of assembly for the gesture pipeline. It owns (strong references) a DeviceMonitor and a GestureRecognizer, holds the active GestureMapping, and delegates action execution to ActionExecutor.shared. AppDelegate holds a strong reference to GestureCoordinator.shared only to control start/stop lifecycle; all other subsystems access it through the shared singleton. The singleton is created lazily on first access and is never torn down during the app's lifetime.",
+        "components": [
+          "GestureCoordinator",
+          "DeviceMonitor",
+          "GestureRecognizer",
+          "ActionExecutor"
+        ],
+        "rationale": "The coordinator must outlive all view controllers and windows. A singleton avoids the need to thread a reference through the entire object graph and matches the single-app-instance lifecycle model."
+      },
+      {
+        "id": "P03",
+        "name": "UserDefaults-backed Codable GestureMapping",
+        "description": "GestureMapping is a plain Swift struct whose six slots each hold a Codable GestureAction enum. Persistence is explicit: save() JSON-encodes self and writes to UserDefaults.standard[\"gestureMapping\"]; load() reads and decodes it, returning .defaults on any failure. There is no Core Data, no file I/O, and no automatic observation of UserDefaults changes \u2014 the SettingsView directly calls save() and updates GestureCoordinator in the same onChange handler. GestureMapping.defaults defines the first-run state (threeFingerTap \u2192 .middleClick, cornerTopLeft \u2192 .missionControl, others \u2192 .none).",
+        "components": [
+          "GestureMapping",
+          "GestureAction",
+          "SettingsView",
+          "GestureCoordinator"
+        ],
+        "rationale": "Six scalar values are well within UserDefaults capacity. Codable + JSON avoids any binary format migration burden. Explicit save/load calls make the persistence surface area obvious and testable."
+      },
+      {
+        "id": "P04",
+        "name": "SwiftUI view observing GestureMapping via @State",
+        "description": "SettingsView owns its mapping as @State var mapping: GestureMapping, initialised from GestureMapping.load() in the view init. Pickers bind directly to mapping's fields via two-way bindings ($mapping.threeFingerTap, etc.). An .onChange(of: mapping) modifier fires on every change, calling mapping.save() and GestureCoordinator.shared.updateMapping(mapping) atomically. Because GestureMapping is a value type (struct), SwiftUI detects field-level changes through Equatable conformance and re-renders only the affected row. The NSWindow hosting SettingsView is created and owned by MenuBarController; a weak var reference prevents duplicate windows.",
+        "components": [
+          "SettingsView",
+          "GestureMapping",
+          "GestureCoordinator",
+          "MenuBarController"
+        ],
+        "rationale": "@State is sufficient because the mapping is owned exclusively by the settings window while it is open. No cross-view sharing requires @ObservedObject or @EnvironmentObject. The value-type copy semantics guarantee that onChange only fires on real mutations."
+      },
+      {
+        "id": "P05",
+        "name": "Graceful degradation on private framework unavailability",
+        "description": "MultitouchFramework.shared attempts dlopen at initialization. If dlopen returns nil (framework path missing or SIP restriction in a future OS), the singleton sets an isAvailable flag to false and all dlsym lookups are skipped. DeviceMonitor.start() checks isAvailable and returns immediately without registering callbacks. GestureCoordinator.start() propagates the no-op silently. The app remains functional as a menu bar item and settings panel \u2014 just without gesture detection. No crash, no user-visible error.",
+        "components": [
+          "MultitouchFramework",
+          "DeviceMonitor",
+          "GestureCoordinator"
+        ],
+        "rationale": "The private framework path and symbol set can change across macOS releases. Crashing on framework absence would be a poor user experience on a future OS version; silent degradation allows the app to remain installable."
+      },
+      {
+        "id": "P06",
+        "name": "Deferred GestureCoordinator start pending Accessibility grant",
+        "description": "On launch, AppDelegate calls PermissionsManager.isAccessibilityGranted(). If false, it calls requestAccessibilityPermission() (which shows the system prompt) and then pollUntilGranted(completion:) \u2014 a repeating 2-second background timer that calls AXIsProcessTrusted(). When access is confirmed, the completion block dispatches to DispatchQueue.main to call GestureCoordinator.shared.start() and update the menu bar icon. If access is already granted on launch, start() is called immediately without polling.",
+        "components": [
+          "AppDelegate",
+          "PermissionsManager",
+          "GestureCoordinator",
+          "MenuBarController"
+        ],
+        "rationale": "CGEvent posting requires Accessibility permission at the point of execution. Starting the pipeline before permission is granted would result in silent action failures. Polling is preferred over an IOKit or distributed notification watcher for simplicity and reliability across macOS versions."
+      }
+    ]
+  },
+  "code": [
+    {
+      "task_id": "T01",
+      "files_changed": [
+        "Package.swift",
+        "Sources/GestureKit/Resources/Info.plist"
+      ],
+      "status": "done"
+    },
+    {
+      "task_id": "T02",
+      "files_changed": [
+        "Sources/GestureKit/AppDelegate.swift",
+        "Sources/GestureKit/main.swift"
+      ],
+      "status": "done"
+    },
+    {
+      "task_id": "T03",
+      "files_changed": [
+        "Sources/GestureKit/MenuBarController.swift"
+      ],
+      "status": "done"
+    },
+    {
+      "task_id": "T04",
+      "files_changed": [
+        "Sources/GestureKit/PermissionsManager.swift"
+      ],
+      "status": "done"
+    },
+    {
+      "task_id": "T05",
+      "files_changed": [
+        "Sources/GestureKit/Core/MultitouchFramework.swift"
+      ],
+      "status": "done"
+    },
+    {
+      "task_id": "T06",
+      "files_changed": [
+        "Sources/GestureKit/Core/TouchModels.swift"
+      ],
+      "status": "done"
+    },
+    {
+      "task_id": "T07",
+      "files_changed": [
+        "Sources/GestureKit/Core/DeviceMonitor.swift"
+      ],
+      "status": "done"
+    },
+    {
+      "task_id": "T08",
+      "files_changed": [
+        "Sources/GestureKit/Core/GestureRecognizer.swift"
+      ],
+      "status": "done"
+    },
+    {
+      "task_id": "T09",
+      "files_changed": [
+        "Sources/GestureKit/Core/GestureRecognizer.swift"
+      ],
+      "status": "done"
+    },
+    {
+      "task_id": "T10",
+      "files_changed": [
+        "Sources/GestureKit/Core/GestureRecognizer.swift"
+      ],
+      "status": "done"
+    },
+    {
+      "task_id": "T11",
+      "files_changed": [
+        "Sources/GestureKit/Core/GestureRecognizer.swift"
+      ],
+      "status": "done"
+    },
+    {
+      "task_id": "T12",
+      "files_changed": [
+        "Sources/GestureKit/Core/GestureAction.swift",
+        "Sources/GestureKit/Core/GestureMapping.swift"
+      ],
+      "status": "done"
+    },
+    {
+      "task_id": "T13",
+      "files_changed": [
+        "Sources/GestureKit/Core/GestureMapping.swift"
+      ],
+      "status": "done"
+    },
+    {
+      "task_id": "T14",
+      "files_changed": [
+        "Sources/GestureKit/Core/ActionExecutor.swift"
+      ],
+      "status": "done"
+    },
+    {
+      "task_id": "T15",
+      "files_changed": [
+        "Sources/GestureKit/Core/ActionExecutor.swift"
+      ],
+      "status": "done"
+    },
+    {
+      "task_id": "T16",
+      "files_changed": [
+        "Sources/GestureKit/Core/GestureCoordinator.swift"
+      ],
+      "status": "done"
+    },
+    {
+      "task_id": "T17",
+      "files_changed": [
+        "Sources/GestureKit/AppDelegate.swift"
+      ],
+      "status": "done"
+    },
+    {
+      "task_id": "T18",
+      "files_changed": [
+        "Sources/GestureKit/UI/SettingsView.swift"
+      ],
+      "status": "done"
+    },
+    {
+      "task_id": "T19",
+      "files_changed": [
+        "Sources/GestureKit/UI/SettingsView.swift"
+      ],
+      "status": "done"
+    },
+    {
+      "task_id": "T20",
+      "files_changed": [
+        "Sources/GestureKit/UI/SettingsView.swift"
+      ],
+      "status": "done"
+    },
+    {
+      "task_id": "T21",
+      "files_changed": [
+        "build.sh"
+      ],
+      "status": "done"
+    },
+    {
+      "task_id": "T22",
+      "files_changed": [
+        "build.sh"
+      ],
+      "status": "done"
+    },
+    {
+      "task_id": "T23",
+      "files_changed": [
+        "README.md"
+      ],
+      "status": "done"
+    },
+    {
+      "task_id": "BUG-02",
+      "files_changed": [
+        "Package.swift"
+      ],
+      "status": "done"
+    },
+    {
+      "task_id": "BUG-01",
+      "files_changed": [
+        "build.sh"
+      ],
+      "status": "done"
+    }
+  ],
+  "bugs": [
+    {
+      "id": "BUG-01",
+      "feature_id": "F07",
+      "task_id": "T21",
+      "description": "build.sh uses xcodebuild (expects a .xcodeproj) but the project is Swift Package Manager-based (Package.swift only, no .xcodeproj). Running build.sh will fail immediately because xcodebuild cannot find the scheme 'GestureKit' without a project or workspace file. The script should instead use 'swift build -c release' for compilation and 'swift package' tooling, or an Xcode project file must be added to the repository.",
+      "severity": "high",
+      "assigned_to": "worker",
+      "status": "fixed",
+      "verified_by": "qc_agent",
+      "verification_notes": "Confirmed: build.sh now uses 'swift build -c release --arch arm64 --arch x86_64'. No xcodebuild present anywhere in the script."
+    },
+    {
+      "id": "BUG-02",
+      "feature_id": "F01",
+      "task_id": "T01",
+      "description": "Package.swift swiftSettings uses .unsafeFlags([\"-target\", \"arm64-apple-macos13\"]) which hard-codes the arm64 architecture only. This prevents building a universal binary (arm64 + x86_64) as required by the architecture spec. A universal binary requires either a two-pass build (once per arch then lipo) or xcodebuild with ARCHS='arm64 x86_64', neither of which is achievable with this single unsafeFlag. The flag should be removed; SPM respects the host architecture by default and cross-compilation requires a different approach.",
+      "severity": "medium",
+      "assigned_to": "worker",
+      "status": "fixed",
+      "verified_by": "qc_agent",
+      "verification_notes": "Confirmed: Package.swift swiftSettings is now an empty array []. No unsafeFlags or -target arm64 present."
+    },
+    {
+      "id": "BUG-03",
+      "feature_id": "F02",
+      "task_id": "T07",
+      "description": "DeviceMonitor.registerCallback uses a global DeviceMonitorBridge singleton to pass 'self' into the C callback. If DeviceMonitor.start() is called on a device list with multiple devices (e.g., a Magic Trackpad plus a built-in trackpad), the second call to registerCallback overwrites DeviceMonitorBridge.instance before the first device's callback can use it. All callbacks share a single bridge pointer, which is correct only for one monitor instance but fragile for multi-device setups. The comment in the code acknowledges this limitation but does not guard against the multi-device data race.",
+      "severity": "low",
+      "assigned_to": "worker",
+      "status": "fixed",
+      "verified_by": "qc_agent",
+      "verification_notes": "Confirmed: DeviceMonitor now uses 'private var deviceContextPointers: [UnsafeMutableRawPointer] = []'. registerCallback(for:) calls Unmanaged.passRetained(self).toOpaque() per device and appends the pointer to the array. stop() iterates the array and releases each pointer via Unmanaged<DeviceMonitor>.fromOpaque(ptr).release(). The global bridge singleton is gone."
+    }
+  ],
+  "decisions": [
+    {
+      "id": "D01",
+      "title": "NSApplicationDelegate over SwiftUI App protocol",
+      "decision": "Use NSApplicationDelegate with LSUIElement=YES rather than the SwiftUI @main App protocol.",
+      "rationale": "SwiftUI App always creates a Dock entry and a default application menu. LSUIElement=YES combined with NSApplicationDelegate gives full control over the process lifecycle without any Dock or menu bar presence. The SwiftUI App lifecycle has no supported mechanism to suppress the Dock icon without hacks.",
+      "alternatives_considered": [
+        "SwiftUI App + NSApplication.shared.setActivationPolicy(.accessory) at startup \u2014 rejected because the window ordering and activation policy fights with SwiftUI's internal scene management."
+      ],
+      "affected_features": [
+        "F01",
+        "F05"
+      ]
+    },
+    {
+      "id": "D02",
+      "title": "dlopen/dlsym for MultitouchSupport \u2014 no build-time link",
+      "decision": "Load MultitouchSupport exclusively at runtime via dlopen. Never add it to the Xcode link phase.",
+      "rationale": "MultitouchSupport is a private framework with no public header. Linking it at build time would require a stub dylib or tbd file that could break on future OS versions. Runtime loading isolates the app binary from the framework's ABI and allows graceful degradation if the framework path changes.",
+      "alternatives_considered": [
+        "Bridging header with manually-declared C types + link flag \u2014 rejected because it creates a hard build dependency and binary link failure if Apple renames/moves the framework."
+      ],
+      "affected_features": [
+        "F02"
+      ]
+    },
+    {
+      "id": "D03",
+      "title": "No sandbox entitlement",
+      "decision": "Distribute without the App Sandbox entitlement.",
+      "rationale": "Posting CGEvents for middleClick, missionControl, and custom keystrokes requires Accessibility permission, which is incompatible with the sandbox in a direct-distribution context. NSWorkspace.openApplication also has restrictions under sandbox. Direct DMG distribution with Developer ID signing and notarization satisfies macOS Gatekeeper without requiring the sandbox.",
+      "alternatives_considered": [
+        "Sandbox + AXIsProcessTrustedWithOptions \u2014 rejected because CGEvent posting and private framework access are not permitted under the sandbox even with the Accessibility entitlement granted."
+      ],
+      "affected_features": [
+        "F04",
+        "F07"
+      ]
+    },
+    {
+      "id": "D04",
+      "title": "Synchronous gesture processing on the MultitouchSupport callback thread",
+      "decision": "Process touch frames and emit gesture events synchronously on the thread provided by the MultitouchSupport callback rather than dispatching to a serial queue.",
+      "rationale": "The tap/click discriminator depends on precise sub-millisecond frame timing. Queueing touch frames introduces jitter that degrades tap vs. sustained-click discrimination accuracy. The callback thread is effectively a dedicated high-priority thread provided by the framework; processing inline is safe as long as GestureRecognizer contains no UI calls.",
+      "alternatives_considered": [
+        "Dispatch to a dedicated serial DispatchQueue \u2014 rejected because it adds queuing latency and complicates the timing model for tapMaxDuration / clickMinDuration thresholds."
+      ],
+      "affected_features": [
+        "F02",
+        "F03"
+      ]
+    },
+    {
+      "id": "D05",
+      "title": "UserDefaults + Codable for persistence (no Core Data / SQLite)",
+      "decision": "Store GestureMapping as a single JSON blob in UserDefaults under the key 'gestureMapping'.",
+      "rationale": "The data model is a fixed-schema struct of six enum values \u2014 well under 1 KB serialised. UserDefaults is zero-setup and supports atomic writes. Core Data or SQLite would add schema migration complexity for negligible benefit.",
+      "alternatives_considered": [
+        "Plist file in Application Support \u2014 similar complexity but requires manual file path management and atomic write boilerplate. UserDefaults is simpler."
+      ],
+      "affected_features": [
+        "F04",
+        "F06"
+      ]
+    },
+    {
+      "id": "D06",
+      "title": "NSWindow hosting SwiftUI via NSHostingController (no WindowGroup)",
+      "decision": "Create the settings window imperatively as an NSWindow with NSHostingController<SettingsView> as the content view controller rather than using a SwiftUI WindowGroup scene.",
+      "rationale": "WindowGroup requires the SwiftUI App protocol and adds Dock/menu bar presence. An imperative NSWindow gives full control over window level (.floating), style mask (no resize/minimize), single-instance enforcement via a weak reference in MenuBarController, and placement near the menu bar icon.",
+      "alternatives_considered": [
+        "SwiftUI WindowGroup with .windowResizability(.contentSize) \u2014 rejected because it is only available on macOS 13+ with SwiftUI App and conflicts with the LSUIElement App lifecycle."
+      ],
+      "affected_features": [
+        "F06"
+      ]
+    },
+    {
+      "id": "D07",
+      "title": "GestureMapping as a value type (@State in SettingsView, not @ObservedObject)",
+      "decision": "GestureMapping is a plain struct (value type), owned as @State in SettingsView. GestureCoordinator holds a var copy that is replaced on updateMapping() calls.",
+      "rationale": "Value semantics make mutation explicit and SwiftUI change detection automatic via Equatable. An ObservableObject/class approach would require @Published on every field and a shared instance, which creates unnecessary coupling between the UI layer and the coordinator. The settings window is short-lived; @State lifetime is appropriate.",
+      "alternatives_considered": [
+        "GestureMapping as an ObservableObject singleton \u2014 rejected because it creates a retained reference graph between the UI and coordinator that complicates unit testing and ownership reasoning."
+      ],
+      "affected_features": [
+        "F04",
+        "F06"
+      ]
+    }
+  ],
   "stakeholder_queue": [],
-  "test_results": [],
+  "test_results": [
+    {
+      "feature_id": "F01",
+      "status": "passed",
+      "notes": "Package.swift exists with correct SPM target. main.swift boots the app manually (required for SPM executables). AppDelegate conforms to NSApplicationDelegate, holds strong references to MenuBarController and PermissionsManager, integrates GestureCoordinator. MenuBarController creates NSStatusItem with SF Symbol icon, builds the menu (Settings, separator, Quit), shows/hides Accessibility warning item, opens a 480x520 floating NSWindow hosting SettingsView. PermissionsManager implements AXIsProcessTrusted(), AXIsProcessTrustedWithOptions prompt, and pollUntilGranted(completion:) on a background queue. Info.plist has LSUIElement=YES, LSBackgroundOnly=NO, NSAccessibilityUsageDescription."
+    },
+    {
+      "feature_id": "F02",
+      "status": "passed",
+      "notes": "MultitouchFramework.swift loads the private framework via dlopen at the correct path, binds all four required symbols (MTDeviceCreateList, MTRegisterContactFrameCallback, MTDeviceStart, MTDeviceStop) via dlsym with unsafeBitCast to typed function pointer aliases, is a lazy singleton, sets isAvailable=false on failure (graceful degradation). TouchModels.swift declares MTPoint, MTVector, MTFinger (all required fields: frame, identifier, normalized, size, angle, majorAxis, minorAxis, zTotal, state, substate), MTDevice as OpaquePointer typealias, FingerState enum, and MTContactFrameCallback type alias. DeviceMonitor.swift enumerates devices, registers C-compatible @convention(c) callback via MTRegisterContactFrameCallback, converts raw C array to [MTFinger], forwards to DeviceMonitorDelegate. Minor: multi-device bridge pointer issue logged as BUG-03."
+    },
+    {
+      "feature_id": "F03",
+      "status": "passed",
+      "notes": "GestureRecognizer.swift implements GestureEvent enum (threeFingerTap, threeFingerClick, forceClickCorner(Corner)) and Corner enum (topLeft, topRight, bottomLeft, bottomRight). ThreeFingerTap: fires on lift when contact duration < 0.18s and no click was already fired. ThreeFingerClick: fires once when 3 fingers held >= 0.18s. ForceClickCorner: detects single finger with zTotal >= 0.30 in a 0.15 corner zone on all 4 corners using normalized trackpad coordinates. State is properly debounced per gesture cycle. Conforms to DeviceMonitorDelegate and emits via GestureRecognizerDelegate."
+    },
+    {
+      "feature_id": "F04",
+      "status": "passed",
+      "notes": "GestureAction.swift declares all 6 required action types plus 'none': middleClick, keystroke(key:modifiers:), openApp(bundleID:), missionControl, appExpose, showDesktop. Full Codable, Equatable, Hashable, CaseIterable (manual allCases) conformance. GestureMapping.swift has all 6 gesture slots, UserDefaults load/save with JSON encoding under key 'gestureMapping', correct defaults (threeFingerTap->middleClick, cornerTopLeft->missionControl). ActionExecutor.swift is a singleton, execute() dispatches all 6 action types: middleClick via CGEvent otherMouseDown/Up, missionControl via virtual key 0xA0, appExpose via Ctrl+DownArrow CGEvent, showDesktop via virtual key 0xA3, keystroke via CGEvent with UniChar, openApp via NSWorkspace.openApplication."
+    },
+    {
+      "feature_id": "F05",
+      "status": "passed",
+      "notes": "GestureCoordinator.swift is a singleton (shared), owns DeviceMonitor and GestureRecognizer, wires them together in init (deviceMonitor.delegate = gestureRecognizer, gestureRecognizer.delegate = self), conforms to GestureRecognizerDelegate. didRecognize() looks up action from mapping and dispatches to ActionExecutor.shared.execute() on DispatchQueue.main. Provides start(), stop(), updateMapping() methods. AppDelegate loads GestureMapping.load() and calls updateMapping() before start(), defers start() until permissions granted via pollUntilGranted."
+    },
+    {
+      "feature_id": "F06",
+      "status": "passed",
+      "notes": "SettingsView.swift is SwiftUI, frame 480x520 with .fixedSize(). Displays all 6 gesture slots (Three Finger Tap, Three Finger Click, Force Click Top/Right/Bottom Left/Right) each with a Picker(.menu) bound to the corresponding GestureMapping field. .onChange(of: mapping) saves to UserDefaults and calls GestureCoordinator.shared.updateMapping() immediately. Conditional KeystrokeField (inline text field) and AppPickerButton (NSOpenPanel) shown for keystroke/openApp actions. Header with icon and title, footer 'Changes take effect immediately'. NSWindow in MenuBarController uses [.titled, .closable] styleMask (no resize/minimize/fullscreen) with weak reference guard against duplicate windows."
+    },
+    {
+      "feature_id": "F07",
+      "status": "passed",
+      "notes": "README.md exists and is comprehensive: covers system requirements, installation, Accessibility permission grant steps, default gesture table, customization instructions, and troubleshooting. build.sh is correct for SPM: uses 'swift build -c release --arch arm64 --arch x86_64' (no xcodebuild), produces universal binary at .build/apple/Products/Release/GestureKit, then codesigns, packages to DMG with hdiutil and Applications symlink, supports optional notarization via NOTARIZE=1 env var. Package.swift has swiftSettings: [] with no unsafeFlags. BUG-01 and BUG-02 confirmed fixed. F07 now passes."
+    }
+  ],
   "write_lock": null
 }
