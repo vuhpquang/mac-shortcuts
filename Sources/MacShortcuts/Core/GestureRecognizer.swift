@@ -89,6 +89,9 @@ class GestureRecognizer: DeviceMonitorDelegate {
     /// Called by DeviceMonitor every time a new frame of finger data arrives.
     /// This is the main entry point — all gesture logic starts here.
     func didReceiveFingers(_ fingers: [MTFinger], timestamp: Double) {
+        let states = fingers.map { $0.state }
+        print("[MacShortcuts] GestureRecognizer: \(fingers.count) finger(s), states=\(states)")
+
         let touchingFingers = fingers.filter { FingerState(rawValue: $0.state) == .touching ||
                                                FingerState(rawValue: $0.state) == .moving ||
                                                FingerState(rawValue: $0.state) == .stationary }
