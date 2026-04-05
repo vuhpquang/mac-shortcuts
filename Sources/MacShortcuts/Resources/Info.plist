@@ -10,6 +10,10 @@
 -->
 <plist version="1.0">
 <dict>
+    <!-- The binary filename inside Contents/MacOS/ that macOS should launch -->
+    <key>CFBundleExecutable</key>
+    <string>MacShortcuts</string>
+
     <!-- App name shown in menus and dialogs -->
     <key>CFBundleName</key>
     <string>Mac Shortcuts</string>
