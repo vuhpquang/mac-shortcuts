@@ -37,7 +37,7 @@ struct SettingsView: View {
             // MARK: Footer
             footerView
         }
-        .frame(width: 480, height: 520)
+        .frame(width: 480, height: 480)
         .fixedSize()  // Prevent the window from being resized
         // Watch for any change in the mapping struct.
         // When any picker changes, save immediately and update the coordinator.
@@ -74,10 +74,6 @@ struct SettingsView: View {
             GestureSlotRow(
                 label: "Three Finger Tap",
                 action: $mapping.threeFingerTap
-            )
-            GestureSlotRow(
-                label: "Three Finger Click",
-                action: $mapping.threeFingerClick
             )
             GestureSlotRow(
                 label: "Force Click — Top Left",

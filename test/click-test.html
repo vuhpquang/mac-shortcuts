@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mac Shortcuts — Click Test</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0c0c10;
+    --card: #13131a;
+    --card2: #1a1a24;
+    --border: #2a2a3a;
+    --accent: #7c3aed;
+    --accent-dim: #4c1d95;
+    --accent-glow: rgba(124, 58, 237, 0.25);
+    --text: #f0f0f8;
+    --muted: #6b7280;
+    --green: #10b981;
+    --blue: #3b82f6;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
+    min-height: 100vh;
+    display: grid;
+    grid-template-rows: auto 1fr;
+    user-select: none;
+  }
+
+  /* ── Header ── */
+  header {
+    text-align: center;
+    padding: 28px 24px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  header h1 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  header h1 span { color: var(--muted); font-weight: 300; }
+  header p { color: var(--muted); font-size: 0.8rem; margin-top: 4px; }
+
+  /* ── Layout ── */
+  main {
+    display: grid;
+    grid-template-columns: 280px 1fr 280px;
+    gap: 20px;
+    padding: 20px 24px 24px;
+    max-width: 1200px;
+    margin: 0 auto;
+    width: 100%;
+  }
+
+  /* ── Cards ── */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px;
+  }
+  .card-label {
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .card-value {
+    font-size: 2.8rem;
+    font-weight: 700;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+  .card-sub { font-size: 0.72rem; color: var(--muted); }
+
+  /* ── Left column ── */
+  .left-col { display: flex; flex-direction: column; gap: 16px; }
+
+  /* Total clicks */
+  #total-card { border-left: 3px solid var(--accent); }
+  #total-card .card-value { color: var(--text); }
+
+  /* Latency */
+  #latency-card { border-left: 3px solid var(--blue); }
+  #latency-card .card-value { color: var(--text); }
+  #latency-card .card-value span { font-size: 1rem; font-weight: 400; color: var(--muted); margin-left: 4px; }
+  .latency-bars {
+    display: flex;
+    gap: 4px;
+    align-items: flex-end;
+    height: 28px;
+    margin-top: 10px;
+  }
+  .latency-bar {
+    flex: 1;
+    background: var(--blue);
+    border-radius: 2px;
+    opacity: 0.4;
+    transition: height 0.15s ease, opacity 0.15s;
+    min-height: 3px;
+  }
+  .latency-bar.latest { opacity: 1; }
+
+  /* Event log */
+  #log-card { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  #log-card .card-label button {
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 0.65rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 4px;
+    transition: color 0.15s;
+  }
+  #log-card .card-label button:hover { color: var(--text); }
+  #event-log {
+    flex: 1;
+    overflow-y: auto;
+    font-family: "SF Mono", "Fira Code", monospace;
+    font-size: 0.72rem;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-top: 8px;
+    max-height: 320px;
+  }
+  #event-log::-webkit-scrollbar { width: 4px; }
+  #event-log::-webkit-scrollbar-track { background: transparent; }
+  #event-log::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  .log-entry {
+    display: grid;
+    grid-template-columns: 90px 56px 1fr;
+    gap: 8px;
+    padding: 3px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    animation: fadeIn 0.15s ease;
+  }
+  @keyframes fadeIn { from { opacity: 0; transform: translateX(-4px); } to { opacity: 1; } }
+  .log-type { color: var(--text); font-weight: 600; }
+  .log-type.left   { color: #a78bfa; }
+  .log-type.right  { color: #f87171; }
+  .log-type.middle { color: var(--green); }
+  .log-type.scroll { color: var(--blue); }
+  .log-interval { color: var(--muted); text-align: right; }
+  .log-time { color: #4b5563; }
+
+  /* ── Center ── */
+  .center-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 24px;
+  }
+
+  /* Trackpad visual */
+  .trackpad-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .trackpad {
+    width: 240px;
+    height: 160px;
+    background: var(--card2);
+    border: 2px solid var(--border);
+    border-radius: 16px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.15s;
+  }
+  .trackpad.flash-left   { border-color: #a78bfa; box-shadow: 0 0 24px rgba(167,139,250,0.3); }
+  .trackpad.flash-right  { border-color: #f87171; box-shadow: 0 0 24px rgba(248,113,113,0.3); }
+  .trackpad.flash-middle { border-color: var(--green); box-shadow: 0 0 24px rgba(16,185,129,0.3); }
+  /* Corner highlights */
+  .corner-zone {
+    position: absolute;
+    width: 30%;
+    height: 30%;
+    border-radius: 4px;
+    background: var(--accent-glow);
+    opacity: 0;
+    transition: opacity 0.2s;
+    pointer-events: none;
+  }
+  .corner-zone.top-left     { top: 0; left: 0; border-radius: 14px 0 0 0; }
+  .corner-zone.top-right    { top: 0; right: 0; border-radius: 0 14px 0 0; }
+  .corner-zone.bottom-left  { bottom: 0; left: 0; border-radius: 0 0 0 14px; }
+  .corner-zone.bottom-right { bottom: 0; right: 0; border-radius: 0 0 14px 0; }
+  .corner-zone.active { opacity: 1; background: rgba(124,58,237,0.4); }
+  .trackpad-label {
+    position: absolute;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 0.6rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  /* Ripple dot */
+  .ripple {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--accent);
+    transform: translate(-50%, -50%) scale(0);
+    pointer-events: none;
+    animation: ripple 0.4s ease-out forwards;
+  }
+  @keyframes ripple {
+    0%   { transform: translate(-50%, -50%) scale(0); opacity: 1; }
+    100% { transform: translate(-50%, -50%) scale(3); opacity: 0; }
+  }
+
+  /* Status pill */
+  .status-pill {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--card2);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 8px 18px;
+    font-size: 0.78rem;
+    color: var(--muted);
+    font-family: "SF Mono", monospace;
+  }
+  .status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 8px var(--green);
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.4; }
+  }
+
+  /* Scroll indicator */
+  .scroll-arrows {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    font-size: 1.2rem;
+  }
+
+  /* ── Right column ── */
+  .right-col { display: flex; flex-direction: column; gap: 10px; }
+  .btn-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    transition: border-color 0.12s, box-shadow 0.12s;
+  }
+  .btn-card.active {
+    border-color: var(--accent);
+    box-shadow: 0 0 16px var(--accent-glow);
+  }
+  .btn-card.active-left   { border-color: #a78bfa; box-shadow: 0 0 16px rgba(167,139,250,0.2); }
+  .btn-card.active-right  { border-color: #f87171; box-shadow: 0 0 16px rgba(248,113,113,0.2); }
+  .btn-card.active-middle { border-color: var(--green); box-shadow: 0 0 16px rgba(16,185,129,0.2); }
+  .btn-card.active-scroll { border-color: var(--blue); box-shadow: 0 0 16px rgba(59,130,246,0.2); }
+  .btn-info { flex: 1; }
+  .btn-name {
+    font-size: 0.62rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 4px;
+  }
+  .btn-count { font-size: 1.8rem; font-weight: 700; line-height: 1; }
+  .btn-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--border);
+    transition: background 0.12s, box-shadow 0.12s;
+    flex-shrink: 0;
+  }
+  .btn-dot.lit-left   { background: #a78bfa; box-shadow: 0 0 8px #a78bfa; }
+  .btn-dot.lit-right  { background: #f87171; box-shadow: 0 0 8px #f87171; }
+  .btn-dot.lit-middle { background: var(--green); box-shadow: 0 0 8px var(--green); }
+  .btn-dot.lit-scroll { background: var(--blue); box-shadow: 0 0 8px var(--blue); }
+
+  .scroll-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  .pro-tip {
+    background: #0f172a;
+    border: 1px solid #1e3a5f;
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin-top: auto;
+  }
+  .pro-tip .card-label { color: #60a5fa; }
+  .pro-tip p { font-size: 0.72rem; color: #94a3b8; line-height: 1.5; margin-top: 6px; }
+
+  /* ── Force Touch ── */
+  .force-card { position: relative; overflow: hidden; }
+  .force-card.active-force {
+    border-color: #f59e0b;
+    box-shadow: 0 0 16px rgba(245,158,11,0.3);
+  }
+  .btn-dot.lit-force { background: #f59e0b; box-shadow: 0 0 8px #f59e0b; }
+  .log-type.force { color: #f59e0b; }
+
+  /* Pressure gauge */
+  .gauge-wrap {
+    width: 200px;
+  }
+  .gauge-label {
+    font-size: 0.62rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    text-align: center;
+    margin-bottom: 8px;
+  }
+  .gauge-track {
+    width: 100%;
+    height: 10px;
+    background: var(--card2);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    overflow: hidden;
+  }
+  .gauge-fill {
+    height: 100%;
+    width: 0%;
+    border-radius: 5px;
+    background: linear-gradient(90deg, #3b82f6 0%, #7c3aed 60%, #f59e0b 85%, #ef4444 100%);
+    transition: width 0.05s linear;
+  }
+  .gauge-ticks {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 3px;
+    font-size: 0.55rem;
+    color: var(--muted);
+    font-family: "SF Mono", monospace;
+  }
+  .gauge-value {
+    text-align: center;
+    font-family: "SF Mono", monospace;
+    font-size: 0.78rem;
+    color: var(--text);
+    margin-top: 4px;
+    height: 18px;
+  }
+  .force-zone {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at center, rgba(245,158,11,0.15) 0%, transparent 70%);
+    opacity: 0;
+    transition: opacity 0.1s;
+    pointer-events: none;
+  }
+  .force-zone.active { opacity: 1; }
+
+  /* Context menu blocker note */
+  .tip-bar {
+    text-align: center;
+    font-size: 0.7rem;
+    color: var(--muted);
+    padding: 8px;
+    background: rgba(255,255,255,0.02);
+    border-top: 1px solid var(--border);
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Mac Shortcuts <span>click test</span></h1>
+  <p>Click anywhere to test — left, right, middle click and scroll events are all captured</p>
+</header>
+
+<main>
+  <!-- LEFT COLUMN -->
+  <div class="left-col">
+    <div class="card" id="total-card">
+      <div class="card-label">
+        Total Clicks
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      </div>
+      <div class="card-value" id="total-count">0</div>
+      <div class="card-sub">Session Accumulation</div>
+    </div>
+
+    <div class="card" id="latency-card">
+      <div class="card-label">
+        Latency / Interval
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+      </div>
+      <div class="card-value" id="latency-value">— <span>ms</span></div>
+      <div class="latency-bars" id="latency-bars">
+        <div class="latency-bar"></div>
+        <div class="latency-bar"></div>
+        <div class="latency-bar"></div>
+        <div class="latency-bar"></div>
+        <div class="latency-bar"></div>
+        <div class="latency-bar"></div>
+        <div class="latency-bar"></div>
+        <div class="latency-bar"></div>
+      </div>
+    </div>
+
+    <div class="card" id="log-card">
+      <div class="card-label">
+        <span>⏱ Event Log</span>
+        <button onclick="clearLog()">↺ Reset</button>
+      </div>
+      <div id="event-log"></div>
+    </div>
+  </div>
+
+  <!-- CENTER COLUMN -->
+  <div class="center-col">
+    <div class="trackpad-wrap">
+      <div class="trackpad" id="trackpad">
+        <div class="corner-zone top-left"     id="cz-tl"></div>
+        <div class="corner-zone top-right"    id="cz-tr"></div>
+        <div class="corner-zone bottom-left"  id="cz-bl"></div>
+        <div class="corner-zone bottom-right" id="cz-br"></div>
+        <div class="trackpad-label">Trackpad</div>
+      </div>
+    </div>
+
+    <div class="status-pill">
+      <div class="status-dot"></div>
+      <span id="status-text">Listening for events…</span>
+    </div>
+
+    <!-- Pressure gauge -->
+    <div class="gauge-wrap">
+      <div class="gauge-label">Force Pressure</div>
+      <div class="gauge-track"><div class="gauge-fill" id="gauge-fill"></div></div>
+      <div class="gauge-ticks"><span>0</span><span>Force Click ▶</span><span>1.0</span></div>
+      <div class="gauge-value" id="gauge-value">—</div>
+    </div>
+  </div>
+
+  <!-- RIGHT COLUMN -->
+  <div class="right-col">
+    <div class="btn-card" id="card-left">
+      <div class="btn-info">
+        <div class="btn-name">Left Click</div>
+        <div class="btn-count" id="count-left">0</div>
+      </div>
+      <div class="btn-dot" id="dot-left"></div>
+    </div>
+    <div class="btn-card" id="card-right">
+      <div class="btn-info">
+        <div class="btn-name">Right Click</div>
+        <div class="btn-count" id="count-right">0</div>
+      </div>
+      <div class="btn-dot" id="dot-right"></div>
+    </div>
+    <div class="btn-card" id="card-middle">
+      <div class="btn-info">
+        <div class="btn-name">Middle Click</div>
+        <div class="btn-count" id="count-middle">0</div>
+      </div>
+      <div class="btn-dot" id="dot-middle"></div>
+    </div>
+
+    <div class="btn-card force-card" id="card-force">
+      <div class="force-zone" id="force-zone"></div>
+      <div class="btn-info">
+        <div class="btn-name">Force Press</div>
+        <div class="btn-count" id="count-force">0</div>
+      </div>
+      <div class="btn-dot" id="dot-force"></div>
+    </div>
+
+    <div class="scroll-row">
+      <div class="btn-card" id="card-scrollup">
+        <div class="btn-info">
+          <div class="btn-name">Scroll Up</div>
+          <div class="btn-count" id="count-scrollup">0</div>
+        </div>
+        <div class="btn-dot" id="dot-scrollup"></div>
+      </div>
+      <div class="btn-card" id="card-scrolldown">
+        <div class="btn-info">
+          <div class="btn-name">Scroll Down</div>
+          <div class="btn-count" id="count-scrolldown">0</div>
+        </div>
+        <div class="btn-dot" id="dot-scrolldown"></div>
+      </div>
+    </div>
+
+    <div class="pro-tip">
+      <div class="card-label">Pro Tip</div>
+      <p>Set a gesture to <strong>Middle Click</strong> in Mac Shortcuts, then tap here to verify it fires. The green counter increments on each successful middle click.</p>
+    </div>
+  </div>
+</main>
+
+<div class="tip-bar">Right-click is captured — context menu is suppressed on this page for testing</div>
+
+<script>
+  const counts = { left: 0, right: 0, middle: 0, force: 0, scrollup: 0, scrolldown: 0 };
+  let totalClicks = 0;
+  let lastClickTime = null;
+  const latencyHistory = new Array(8).fill(0);
+  let latencyMax = 1;
+
+  // ── Utilities ──
+  function now() {
+    return new Date();
+  }
+  function fmtTime(d) {
+    return d.toLocaleTimeString('en-US', { hour12: true, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  }
+  function fmtMs(ms) { return ms + 'ms'; }
+
+  // ── Flash helpers ──
+  function flashCard(key, durationMs = 120) {
+    const card = document.getElementById('card-' + key);
+    const dot  = document.getElementById('dot-' + key);
+    if (!card || !dot) return;
+    const norm = key.replace('scrollup','scroll').replace('scrolldown','scroll');
+    const cls = 'active-' + norm;
+    const dotCls = 'lit-' + norm;
+    card.classList.add(cls);
+    dot.classList.add(dotCls);
+    setTimeout(() => { card.classList.remove(cls); dot.classList.remove(dotCls); }, durationMs);
+  }
+  function flashTrackpad(key, durationMs = 120) {
+    const tp = document.getElementById('trackpad');
+    const cls = 'flash-' + key.replace('scrollup','scroll').replace('scrolldown','scroll');
+    tp.classList.add(cls);
+    setTimeout(() => tp.classList.remove(cls), durationMs);
+  }
+  function addRipple(x, y) {
+    const tp = document.getElementById('trackpad');
+    const rect = tp.getBoundingClientRect();
+    const rx = x - rect.left;
+    const ry = y - rect.top;
+    const r = document.createElement('div');
+    r.className = 'ripple';
+    r.style.left = rx + 'px';
+    r.style.top  = ry + 'px';
+    tp.appendChild(r);
+    setTimeout(() => r.remove(), 450);
+  }
+
+  // ── Latency bars ──
+  function updateLatency(ms) {
+    latencyHistory.push(ms);
+    if (latencyHistory.length > 8) latencyHistory.shift();
+    latencyMax = Math.max(...latencyHistory, 1);
+    const bars = document.querySelectorAll('.latency-bar');
+    bars.forEach((bar, i) => {
+      const val = latencyHistory[i] || 0;
+      const pct = Math.max(8, Math.round((val / Math.min(latencyMax * 1.2, 2000)) * 100));
+      bar.style.height = pct + '%';
+      bar.classList.toggle('latest', i === latencyHistory.length - 1);
+    });
+    document.getElementById('latency-value').innerHTML = ms + ' <span>ms</span>';
+  }
+
+  // ── Event log ──
+  function logEvent(typeName, cssKey, intervalMs) {
+    const log = document.getElementById('event-log');
+    const entry = document.createElement('div');
+    entry.className = 'log-entry';
+    const interval = intervalMs != null ? fmtMs(intervalMs) : '—';
+    entry.innerHTML = `
+      <span class="log-type ${cssKey}">${typeName}</span>
+      <span class="log-interval">${interval}</span>
+      <span class="log-time">${fmtTime(new Date())}</span>
+    `;
+    log.prepend(entry);
+    // Keep max 60 entries
+    while (log.children.length > 60) log.removeChild(log.lastChild);
+  }
+
+  function clearLog() {
+    document.getElementById('event-log').innerHTML = '';
+    Object.keys(counts).forEach(k => { counts[k] = 0; document.getElementById('count-' + k).textContent = '0'; });
+    totalClicks = 0;
+    lastClickTime = null;
+    document.getElementById('total-count').textContent = '0';
+    document.getElementById('latency-value').innerHTML = '— <span>ms</span>';
+    latencyHistory.fill(0);
+    document.querySelectorAll('.latency-bar').forEach(b => { b.style.height = '8%'; b.classList.remove('latest'); });
+    document.getElementById('status-text').textContent = 'Listening for events…';
+  }
+
+  // ── Register click ──
+  function registerClick(typeName, cssKey, x, y) {
+    const t = Date.now();
+    let interval = null;
+    if (lastClickTime !== null) {
+      interval = t - lastClickTime;
+      updateLatency(interval);
+    }
+    lastClickTime = t;
+    totalClicks++;
+    counts[cssKey] = (counts[cssKey] || 0) + 1;
+
+    document.getElementById('total-count').textContent = totalClicks;
+    document.getElementById('count-' + cssKey).textContent = counts[cssKey];
+
+    flashCard(cssKey);
+    flashTrackpad(cssKey);
+    if (x != null && y != null) addRipple(x, y);
+    logEvent(typeName, cssKey.replace('scrollup','scroll').replace('scrolldown','scroll'), interval);
+    document.getElementById('status-text').textContent = typeName + ' detected';
+  }
+
+  // ── Force Touch (WebKit / Safari) ──
+  let forceActive = false;
+  let gaugeResetTimer = null;
+
+  function updateGauge(force) {
+    // WebKit force: 0 (none) → 1 (normal click) → 2 (force click) → 3 (max)
+    // Normalise to 0–1 for display (clamp at 3.0)
+    const pct = Math.min(force / 3.0, 1.0) * 100;
+    document.getElementById('gauge-fill').style.width = pct + '%';
+    document.getElementById('gauge-value').textContent = force.toFixed(2);
+    document.getElementById('force-zone').classList.toggle('active', force >= 1.0);
+    clearTimeout(gaugeResetTimer);
+    gaugeResetTimer = setTimeout(() => {
+      document.getElementById('gauge-fill').style.width = '0%';
+      document.getElementById('gauge-value').textContent = '—';
+      document.getElementById('force-zone').classList.remove('active');
+    }, 600);
+  }
+
+  // Must call preventDefault on webkitmouseforcewillbegin to enable force events
+  document.addEventListener('webkitmouseforcewillbegin', e => e.preventDefault());
+
+  document.addEventListener('webkitmouseforcechanged', e => {
+    updateGauge(e.webkitForce);
+  });
+
+  document.addEventListener('webkitmouseforcedown', e => {
+    // Fires when normal-click force is crossed (webkitForce ≈ 1.0)
+    // webkitmouseforceup fires when force click is crossed (webkitForce ≈ 2.0)
+  });
+
+  document.addEventListener('webkitmouseforceup', e => {
+    // Force click confirmed
+    if (!forceActive) {
+      forceActive = true;
+      registerClick('Force Press', 'force', e.clientX, e.clientY);
+      setTimeout(() => { forceActive = false; }, 400);
+    }
+  });
+
+  // Pointer pressure fallback (Chromium: pressure > 0.5 sustained = force-like)
+  let pointerPressureTimer = null;
+  let pointerForceFired = false;
+  document.addEventListener('pointermove', e => {
+    if (e.pressure > 0 && e.pressure !== 0.5) {
+      // 0.5 is the default for mouse buttons; only track genuine pressure devices
+      const pct = Math.min(e.pressure, 1.0) * 100;
+      document.getElementById('gauge-fill').style.width = pct + '%';
+      document.getElementById('gauge-value').textContent = e.pressure.toFixed(2);
+      document.getElementById('force-zone').classList.toggle('active', e.pressure >= 0.7);
+      clearTimeout(gaugeResetTimer);
+      gaugeResetTimer = setTimeout(() => {
+        document.getElementById('gauge-fill').style.width = '0%';
+        document.getElementById('gauge-value').textContent = '—';
+        document.getElementById('force-zone').classList.remove('active');
+      }, 600);
+      if (e.pressure >= 0.9 && !pointerForceFired) {
+        pointerForceFired = true;
+        registerClick('Force Press', 'force', e.clientX, e.clientY);
+      }
+    }
+  });
+  document.addEventListener('pointerup',   () => { pointerForceFired = false; });
+  document.addEventListener('pointerdown', e => {
+    pointerForceFired = false;
+    if (e.pressure === 0.5) return; // generic mouse — skip
+    updateGauge(e.pressure * 2); // roughly map 0–1 pointer pressure to 0–2 WebKit scale
+  });
+
+  // ── Mouse events ──
+  document.addEventListener('mousedown', e => {
+    e.preventDefault();
+    if (e.button === 0) registerClick('Left Click',   'left',   e.clientX, e.clientY);
+    if (e.button === 1) registerClick('Middle Click', 'middle', e.clientX, e.clientY);
+    if (e.button === 2) registerClick('Right Click',  'right',  e.clientX, e.clientY);
+  });
+  document.addEventListener('contextmenu', e => e.preventDefault());
+  document.addEventListener('auxclick', e => {
+    if (e.button === 1) registerClick('Middle Click', 'middle', e.clientX, e.clientY);
+  });
+
+  // ── Scroll events ──
+  let scrollTimeout;
+  document.addEventListener('wheel', e => {
+    e.preventDefault();
+    const key = e.deltaY < 0 ? 'scrollup' : 'scrolldown';
+    const label = e.deltaY < 0 ? 'Scroll Up' : 'Scroll Down';
+    clearTimeout(scrollTimeout);
+    scrollTimeout = setTimeout(() => registerClick(label, key, e.clientX, e.clientY), 50);
+  }, { passive: false });
+
+  // ── Corner zone visual feedback on mousemove ──
+  document.addEventListener('mousemove', e => {
+    const tp = document.getElementById('trackpad');
+    const rect = tp.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width;
+    const y = (e.clientY - rect.top) / rect.height;
+    const z = 0.30;
+    document.getElementById('cz-tl').classList.toggle('active', x < z && y < z);
+    document.getElementById('cz-tr').classList.toggle('active', x > 1-z && y < z);
+    document.getElementById('cz-bl').classList.toggle('active', x < z && y > 1-z);
+    document.getElementById('cz-br').classList.toggle('active', x > 1-z && y > 1-z);
+  });
+</script>
+</body>
+</html>

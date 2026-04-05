@@ -85,19 +85,17 @@ class ActionExecutor {
     // MARK: - Mission Control
 
     /// Activates Mission Control — the macOS overview of all open windows and Spaces.
-    /// Uses the dedicated Mission Control virtual key (0xA0).
+    /// Uses Control+Up, the default Mission Control keyboard shortcut.
     private func performMissionControl() {
-        // Virtual key code for Mission Control (F3 on most Mac keyboards, 0xA0 internally).
-        // This is the same key code that macOS uses when you press F3 / the Mission Control key.
-        let missionControlKeyCode: CGKeyCode = 0xA0
-
         let source = CGEventSource(stateID: .hidSystemState)
-
-        if let keyDown = CGEvent(keyboardEventSource: source, virtualKey: missionControlKeyCode, keyDown: true) {
-            keyDown.post(tap: .cghidEventTap)
+        let upArrow: CGKeyCode = 126  // kVK_UpArrow
+        if let down = CGEvent(keyboardEventSource: source, virtualKey: upArrow, keyDown: true) {
+            down.flags = .maskControl
+            down.post(tap: .cghidEventTap)
         }
-        if let keyUp = CGEvent(keyboardEventSource: source, virtualKey: missionControlKeyCode, keyDown: false) {
-            keyUp.post(tap: .cghidEventTap)
+        if let up = CGEvent(keyboardEventSource: source, virtualKey: upArrow, keyDown: false) {
+            up.flags = .maskControl
+            up.post(tap: .cghidEventTap)
         }
     }
 
@@ -122,19 +120,18 @@ class ActionExecutor {
 
     // MARK: - Show Desktop
 
-    /// Moves all windows aside to show the Desktop (like pressing F11 or the Show Desktop hot corner).
-    /// Uses the dedicated Show Desktop virtual key (0xA3).
+    /// Moves all windows aside to show the Desktop.
+    /// Uses Control+F3 (Show Desktop), falling back to the dedicated virtual key if needed.
     private func performShowDesktop() {
-        // Virtual key code for Show Desktop (Exposé → Desktop), key code 0xA3.
-        let showDesktopKeyCode: CGKeyCode = 0xA3
-
+        // Show Desktop default shortcut on macOS: Cmd+Mission Control (Ctrl+Up mapped differently).
+        // The most compatible approach is F11, which is the classic Show Desktop shortcut.
         let source = CGEventSource(stateID: .hidSystemState)
-
-        if let keyDown = CGEvent(keyboardEventSource: source, virtualKey: showDesktopKeyCode, keyDown: true) {
-            keyDown.post(tap: .cghidEventTap)
+        let f11: CGKeyCode = 103  // kVK_F11
+        if let down = CGEvent(keyboardEventSource: source, virtualKey: f11, keyDown: true) {
+            down.post(tap: .cghidEventTap)
         }
-        if let keyUp = CGEvent(keyboardEventSource: source, virtualKey: showDesktopKeyCode, keyDown: false) {
-            keyUp.post(tap: .cghidEventTap)
+        if let up = CGEvent(keyboardEventSource: source, virtualKey: f11, keyDown: false) {
+            up.post(tap: .cghidEventTap)
         }
     }
 

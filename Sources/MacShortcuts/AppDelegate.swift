@@ -21,6 +21,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // Called by macOS right after the app finishes launching.
     // This is the right place to do all one-time setup.
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Install the click suppressor early so the CGEventTap is ready before
+        // any force-click gestures are detected. Accessing the singleton is enough.
+        _ = ClickSuppressor.shared
+
         // Step 1: Create the menu bar icon and dropdown menu.
         menuBarController = MenuBarController()
 

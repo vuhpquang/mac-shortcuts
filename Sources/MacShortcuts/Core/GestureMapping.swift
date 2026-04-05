@@ -22,7 +22,6 @@ struct GestureMapping: Codable, Equatable {
 
     // One action per gesture slot.
     var threeFingerTap:    GestureAction
-    var threeFingerClick:  GestureAction
     var cornerTopLeft:     GestureAction
     var cornerTopRight:    GestureAction
     var cornerBottomLeft:  GestureAction
@@ -35,7 +34,6 @@ struct GestureMapping: Codable, Equatable {
     /// Force Click Top-Left → Mission Control mirrors a common macOS Hot Corner.
     static let defaults = GestureMapping(
         threeFingerTap:    .middleClick,
-        threeFingerClick:  .none,
         cornerTopLeft:     .missionControl,
         cornerTopRight:    .none,
         cornerBottomLeft:  .none,
@@ -82,8 +80,6 @@ struct GestureMapping: Codable, Equatable {
         switch gesture {
         case .threeFingerTap:
             return threeFingerTap
-        case .threeFingerClick:
-            return threeFingerClick
         case .forceClickCorner(let corner):
             switch corner {
             case .topLeft:     return cornerTopLeft
