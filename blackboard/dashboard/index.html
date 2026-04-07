@@ -199,6 +199,15 @@ details .det-body { font-size:12px; color:var(--muted); line-height:1.6; padding
 .md-wrap p { margin:6px 0; }
 .md-wrap hr { border:none; border-top:1px solid var(--border); margin:16px 0; }
 
+/* ── Project selector ── */
+.proj-select-wrap { padding: 10px 16px; border-bottom: 1px solid var(--border); }
+.proj-select-label { font-size:10px; font-weight:600; color:var(--dim); text-transform:uppercase; letter-spacing:.7px; margin-bottom:5px; }
+#proj-select {
+  width:100%; background:var(--surface2); color:var(--text); border:1px solid var(--border);
+  border-radius:var(--r-sm); padding:5px 8px; font-size:13px; cursor:pointer; outline:none;
+}
+#proj-select:hover { border-color:var(--accent); }
+
 /* ── Loading / error ── */
 #loading { display:flex; align-items:center; justify-content:center; height:100vh; flex:1; flex-direction:column; gap:12px; color:var(--muted); }
 .spinner { width:28px; height:28px; border:3px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin .7s linear infinite; }
@@ -241,6 +250,10 @@ details .det-body { font-size:12px; color:var(--muted); line-height:1.6; padding
     <div class="sb-badge" id="sb-project-id">PROJECT</div>
     <div class="sb-title" id="sb-project-name">—</div>
     <div class="sb-status" id="sb-project-status"></div>
+  </div>
+  <div class="proj-select-wrap">
+    <div class="proj-select-label">Switch project</div>
+    <select id="proj-select" onchange="loadProject(this.value)"></select>
   </div>
   <div class="sb-nav">
     <div class="nav-section">Overview</div>
@@ -371,30 +384,67 @@ details .det-body { font-size:12px; color:var(--muted); line-height:1.6; padding
 let STATE = null;
 let CONTEXT_MD = '';
 let currentPage = 'overview';
+let CURRENT_PROJECT = null;
 
-// ── Boot ───────────────────────────────────────────────────────────
-async function boot() {
+// ── Project loader ─────────────────────────────────────────────────
+async function loadProject(name) {
+  CURRENT_PROJECT = name;
+  // Update URL param without reload
+  const url = new URL(window.location);
+  url.searchParams.set('project', name);
+  history.replaceState(null, '', url);
+
+  document.getElementById('loading').style.display = 'flex';
+  document.getElementById('sidebar').style.display = 'none';
+  document.getElementById('main').style.display = 'none';
+
   try {
     const [jsonRes, mdRes] = await Promise.all([
-      fetch('../state.json'),
-      fetch('../context.md')
+      fetch(`../${name}/state.json`),
+      fetch(`../${name}/context.md`)
     ]);
-    if (!jsonRes.ok) throw new Error(`state.json: ${jsonRes.status} ${jsonRes.statusText}`);
+    if (!jsonRes.ok) throw new Error(`${name}/state.json: ${jsonRes.status} ${jsonRes.statusText}`);
     STATE = await jsonRes.json();
     CONTEXT_MD = mdRes.ok ? await mdRes.text() : '*(context.md not found)*';
 
     document.getElementById('loading').style.display = 'none';
     document.getElementById('sidebar').style.display = 'flex';
     document.getElementById('main').style.display = 'block';
-
     renderAll();
   } catch (e) {
     document.getElementById('loading').innerHTML =
-      `<div class="error-box"><strong>Failed to load blackboard data</strong><br><br>${e.message}<br><br>
-      <span style="font-size:12px;opacity:.8">Run a local server from the <code style="font-family:var(--mono)">blackboard/</code> directory:<br>
-      <code style="font-family:var(--mono)">python3 -m http.server 8000</code><br>
-      Then open <code style="font-family:var(--mono)">http://localhost:8000/dashboard/</code></span></div>`;
+      `<div class="error-box"><strong>Failed to load project "${name}"</strong><br><br>${e.message}<br><br>
+      <span style="font-size:12px;opacity:.8">Make sure the server is running from the <code style="font-family:var(--mono)">blackboard/</code> directory:<br>
+      <code style="font-family:var(--mono)">python3 -m http.server 8000</code></span></div>`;
   }
+}
+
+// ── Boot ───────────────────────────────────────────────────────────
+async function boot() {
+  // Load project list
+  let projects = [];
+  try {
+    const res = await fetch('../projects.json');
+    if (res.ok) projects = await res.json();
+  } catch (_) {}
+
+  if (!projects.length) {
+    document.getElementById('loading').innerHTML =
+      `<div class="error-box"><strong>No projects found</strong><br><br>
+      Create a project with:<br><code style="font-family:var(--mono)">bash scripts/init_project.sh &lt;name&gt;</code></div>`;
+    return;
+  }
+
+  // Populate selector
+  const sel = document.getElementById('proj-select');
+  sel.innerHTML = projects.map(p => `<option value="${p}">${p}</option>`).join('');
+
+  // Determine which project to show (URL param → first)
+  const param = new URL(window.location).searchParams.get('project');
+  const initial = (param && projects.includes(param)) ? param : projects[0];
+  sel.value = initial;
+
+  await loadProject(initial);
 }
 
 // ── Navigation ─────────────────────────────────────────────────────
