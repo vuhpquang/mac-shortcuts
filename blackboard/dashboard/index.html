@@ -281,6 +281,9 @@ details .det-body { font-size:12px; color:var(--muted); line-height:1.6; padding
     <button class="nav-btn" onclick="nav('architecture')">
       <span>&#9874;</span> Architecture
     </button>
+    <button class="nav-btn" onclick="nav('tech-summary')">
+      <span>&#128196;</span> Tech Summary
+    </button>
   </div>
 </nav>
 
@@ -357,6 +360,15 @@ details .det-body { font-size:12px; color:var(--muted); line-height:1.6; padding
     <div id="test-list"></div>
   </div>
 
+  <!-- TECH SUMMARY -->
+  <div id="page-tech-summary" class="page">
+    <div class="page-hdr">
+      <h1>Tech Summary</h1>
+      <p>tech-summary.md — architecture, stack, and interview-ready technical breakdown</p>
+    </div>
+    <div class="md-wrap" id="tech-summary-body"></div>
+  </div>
+
   <!-- ARCHITECTURE -->
   <div id="page-architecture" class="page">
     <div class="page-hdr">
@@ -383,6 +395,7 @@ details .det-body { font-size:12px; color:var(--muted); line-height:1.6; padding
 // ── State ──────────────────────────────────────────────────────────
 let STATE = null;
 let CONTEXT_MD = '';
+let TECH_SUMMARY_MD = '';
 let currentPage = 'overview';
 let CURRENT_PROJECT = null;
 
@@ -399,13 +412,15 @@ async function loadProject(name) {
   document.getElementById('main').style.display = 'none';
 
   try {
-    const [jsonRes, mdRes] = await Promise.all([
+    const [jsonRes, mdRes, techRes] = await Promise.all([
       fetch(`../${name}/state.json`),
-      fetch(`../${name}/context.md`)
+      fetch(`../${name}/context.md`),
+      fetch(`../${name}/tech-summary.md`)
     ]);
     if (!jsonRes.ok) throw new Error(`${name}/state.json: ${jsonRes.status} ${jsonRes.statusText}`);
     STATE = await jsonRes.json();
     CONTEXT_MD = mdRes.ok ? await mdRes.text() : '*(context.md not found)*';
+    TECH_SUMMARY_MD = techRes.ok ? await techRes.text() : '*(tech-summary.md not found)*';
 
     document.getElementById('loading').style.display = 'none';
     document.getElementById('sidebar').style.display = 'flex';
@@ -540,6 +555,7 @@ function renderAll() {
 
   renderOverview(proj, features, tasks, bugs, tests);
   renderContext();
+  renderTechSummary();
   renderFeatures(features, tests, tasks);
   renderTasks(tasks, features);
   renderBugs(bugs, features);
@@ -616,6 +632,10 @@ function arch_count(s, path) {
 // ── Context ────────────────────────────────────────────────────────
 function renderContext() {
   document.getElementById('ctx-body').innerHTML = renderMd(CONTEXT_MD);
+}
+
+function renderTechSummary() {
+  document.getElementById('tech-summary-body').innerHTML = renderMd(TECH_SUMMARY_MD);
 }
 
 // ── Features ───────────────────────────────────────────────────────
