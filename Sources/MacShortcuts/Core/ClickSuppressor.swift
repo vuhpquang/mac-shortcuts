@@ -48,6 +48,16 @@ final class ClickSuppressor {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: item)
     }
 
+    /// Tear down the existing event tap and install a fresh one.
+    /// Call this after the machine wakes from sleep — macOS disables CGEventTaps on sleep.
+    func reinstall() {
+        if let tap = eventTap { CGEvent.tapEnable(tap: tap, enable: false) }
+        if let src = runLoopSource { CFRunLoopRemoveSource(CFRunLoopGetMain(), src, .commonModes) }
+        eventTap = nil
+        runLoopSource = nil
+        install()
+    }
+
     // MARK: - Private
 
     private func install() {

@@ -45,6 +45,36 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 self.startGestureEngine()
             }
         }
+
+        // Listen for machine sleep/wake so we can restart the gesture engine after wake.
+        // MT device handles and CGEventTaps both become stale after sleep.
+        NSWorkspace.shared.notificationCenter.addObserver(
+            self,
+            selector: #selector(machineWillSleep),
+            name: NSWorkspace.willSleepNotification,
+            object: nil
+        )
+        NSWorkspace.shared.notificationCenter.addObserver(
+            self,
+            selector: #selector(machineDidWake),
+            name: NSWorkspace.didWakeNotification,
+            object: nil
+        )
+    }
+
+    @objc private func machineWillSleep(_ note: Notification) {
+        print("[MacShortcuts] AppDelegate: Machine sleeping — stopping gesture engine.")
+        GestureCoordinator.shared.stop()
+    }
+
+    @objc private func machineDidWake(_ note: Notification) {
+        print("[MacShortcuts] AppDelegate: Machine woke — restarting gesture engine.")
+        // Give the OS a moment to restore HID services before we re-enumerate devices.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            guard PermissionsManager.isAccessibilityGranted() else { return }
+            ClickSuppressor.shared.reinstall()
+            GestureCoordinator.shared.start()
+        }
     }
 
     // Starts the gesture detection engine with the user's saved (or default) settings.

@@ -50,6 +50,7 @@ class GestureCoordinator: GestureRecognizerDelegate {
 
     /// Starts the gesture detection pipeline.
     /// Call this after Accessibility permission is confirmed.
+    /// Safe to call after stop() — deviceMonitor re-enumerates devices on each start().
     func start() {
         guard !isRunning else { return }
         deviceMonitor.start()
