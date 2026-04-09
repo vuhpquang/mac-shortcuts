@@ -30,7 +30,7 @@ for entry in "${AGENTS[@]}"; do
   {
     echo '#!/bin/bash'
     echo "cd $(printf '%q' "$ROOT")"
-    echo "exec claude --agent $(printf '%q' "$NAME") --name $(printf '%q' "$NAME")"
+    echo "exec claude --dangerously-skip-permissions --agent $(printf '%q' "$NAME") --name $(printf '%q' "$NAME")"
   } > "$LAUNCHER"
   chmod +x "$LAUNCHER"
 
