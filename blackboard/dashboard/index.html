@@ -236,6 +236,77 @@ details .det-body { font-size:12px; color:var(--muted); line-height:1.6; padding
   #sidebar { display:none; }
   #main { margin-left:0; padding:16px; }
 }
+
+/* ── Agents page ── */
+#main:has(#page-agents.active) { padding: 0; max-width: none; }
+#page-agents { display: none; flex-direction: column; height: 100vh; }
+#page-agents.active { display: flex; }
+
+.agents-grid {
+  flex: 1; display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 2px; background: var(--surface2); min-height: 0;
+}
+.agents-grid.solo { grid-template-columns: 1fr; grid-template-rows: 1fr; }
+.agent-pane { position: relative; background: var(--bg); overflow: hidden; }
+.agent-pane.hidden { display: none; }
+.agent-pane iframe { width: 100%; height: 100%; border: none; display: block; }
+.agent-pane-lbl {
+  position: absolute; top: 5px; left: 8px; z-index: 10;
+  background: rgba(13,17,23,.88); color: var(--accent);
+  font-size: 10px; font-weight: 700; padding: 2px 7px;
+  border-radius: 3px; pointer-events: none; letter-spacing: .5px;
+  text-transform: uppercase; border: 1px solid var(--accent-bg);
+  font-family: var(--mono);
+}
+.agents-toolbar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 12px; background: var(--surface);
+  border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.agents-toolbar-title { font-size: 11px; font-weight: 700; color: var(--accent); letter-spacing: .8px; text-transform: uppercase; font-family: var(--mono); }
+.av-btn {
+  padding: 3px 9px; border: 1px solid var(--border);
+  border-radius: 3px; background: var(--surface2); color: var(--muted);
+  font-size: 11px; cursor: pointer; font-family: var(--mono);
+}
+.av-btn:hover { border-color: var(--accent); color: var(--accent); }
+.av-btn.active { background: var(--accent-bg); color: var(--accent); border-color: var(--accent); }
+
+.agents-chat {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 12px; background: var(--surface);
+  border-top: 1px solid var(--border); flex-shrink: 0;
+}
+.chat-tag-btns { display: flex; gap: 4px; flex-shrink: 0; }
+.chat-tag {
+  padding: 4px 10px; border: 1px solid var(--border);
+  border-radius: 3px; background: var(--surface2); color: var(--muted);
+  font-size: 11px; cursor: pointer; font-family: var(--mono);
+}
+.chat-tag:hover { border-color: var(--accent); color: var(--accent); }
+.chat-tag.active { background: var(--accent-bg); color: var(--accent); border-color: var(--accent); }
+.chat-tag.all.active { background: var(--green-bg); color: var(--green); border-color: var(--green); }
+.chat-msg-input {
+  flex: 1; background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 4px; color: var(--text); padding: 6px 10px;
+  font-size: 13px; font-family: var(--mono); outline: none; min-width: 0;
+}
+.chat-msg-input:focus { border-color: var(--accent); }
+.chat-msg-input::placeholder { color: var(--dim); }
+.chat-send {
+  padding: 6px 14px; background: var(--accent-bg); color: var(--accent);
+  border: 1px solid var(--accent); border-radius: 4px;
+  cursor: pointer; font-size: 13px; flex-shrink: 0;
+}
+.chat-send:hover { background: var(--accent); color: var(--bg); }
+.relay-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--dim); flex-shrink: 0; margin-left: 4px;
+}
+.relay-dot.ok  { background: var(--green); }
+.relay-dot.err { background: var(--red); }
 </style>
 </head>
 <body>
@@ -283,6 +354,10 @@ details .det-body { font-size:12px; color:var(--muted); line-height:1.6; padding
     </button>
     <button class="nav-btn" onclick="nav('tech-summary')">
       <span>&#128196;</span> Tech Summary
+    </button>
+    <div class="nav-section">Team</div>
+    <button class="nav-btn" onclick="nav('agents'); checkRelay()">
+      <span>&#9654;</span> Agents
     </button>
   </div>
 </nav>
@@ -387,6 +462,65 @@ details .det-body { font-size:12px; color:var(--muted); line-height:1.6; padding
     <div id="arch-structure" class="tab-pane"></div>
     <div id="arch-data" class="tab-pane"></div>
     <div id="arch-stack" class="tab-pane"></div>
+  </div>
+
+  <!-- AGENTS -->
+  <div id="page-agents" class="page">
+    <div class="agents-toolbar">
+      <span class="agents-toolbar-title">Agents</span>
+      <span style="color:var(--border)">|</span>
+      <button class="av-btn active" id="abtn-grid"     onclick="agentsView('grid')">Grid</button>
+      <button class="av-btn"        id="abtn-po"       onclick="agentsView('po')">PO</button>
+      <button class="av-btn"        id="abtn-pm"       onclick="agentsView('pm')">PM</button>
+      <button class="av-btn"        id="abtn-design"   onclick="agentsView('design')">Design</button>
+      <button class="av-btn"        id="abtn-techlead" onclick="agentsView('techlead')">TechLead</button>
+      <button class="av-btn"        id="abtn-dev"      onclick="agentsView('dev')">Dev</button>
+      <button class="av-btn"        id="abtn-qc"       onclick="agentsView('qc')">QC</button>
+      <span style="margin-left:auto;font-size:11px;color:var(--dim)">relay</span>
+      <span class="relay-dot" id="bb-relay-dot" title="Chat relay (port 7690)"></span>
+    </div>
+
+    <div class="agents-grid" id="agents-grid">
+      <div class="agent-pane" id="apane-po">
+        <div class="agent-pane-lbl">PO</div>
+        <iframe src="http://localhost:7681" loading="lazy"></iframe>
+      </div>
+      <div class="agent-pane" id="apane-pm">
+        <div class="agent-pane-lbl">PM</div>
+        <iframe src="http://localhost:7682" loading="lazy"></iframe>
+      </div>
+      <div class="agent-pane" id="apane-design">
+        <div class="agent-pane-lbl">Design</div>
+        <iframe src="http://localhost:7683" loading="lazy"></iframe>
+      </div>
+      <div class="agent-pane" id="apane-techlead">
+        <div class="agent-pane-lbl">TechLead</div>
+        <iframe src="http://localhost:7684" loading="lazy"></iframe>
+      </div>
+      <div class="agent-pane" id="apane-dev">
+        <div class="agent-pane-lbl">Dev</div>
+        <iframe src="http://localhost:7685" loading="lazy"></iframe>
+      </div>
+      <div class="agent-pane" id="apane-qc">
+        <div class="agent-pane-lbl">QC</div>
+        <iframe src="http://localhost:7686" loading="lazy"></iframe>
+      </div>
+    </div>
+
+    <div class="agents-chat">
+      <div class="chat-tag-btns">
+        <button class="chat-tag all active" id="ctag-all"      onclick="chatTag('all')">All</button>
+        <button class="chat-tag"            id="ctag-po"       onclick="chatTag('po')">PO</button>
+        <button class="chat-tag"            id="ctag-pm"       onclick="chatTag('pm')">PM</button>
+        <button class="chat-tag"            id="ctag-design"   onclick="chatTag('design')">Design</button>
+        <button class="chat-tag"            id="ctag-techlead" onclick="chatTag('techlead')">TechLead</button>
+        <button class="chat-tag"            id="ctag-dev"      onclick="chatTag('dev')">Dev</button>
+        <button class="chat-tag"            id="ctag-qc"       onclick="chatTag('qc')">QC</button>
+      </div>
+      <input class="chat-msg-input" id="bb-chat-input"
+             placeholder="Send message to agent(s)… Enter to send" />
+      <button class="chat-send" onclick="bbSend()">Send</button>
+    </div>
   </div>
 
 </main>
@@ -947,6 +1081,60 @@ function renderArchitecture(arch) {
       <tbody>${stackRows || '<tr><td colspan="2" style="color:var(--muted)">No stack info</td></tr>'}</tbody>
       </table>
     </div>`;
+}
+
+// ── Agents page ────────────────────────────────────────────────────
+const BB_RELAY = 'http://localhost:7690/send';
+const BB_AGENTS = ['po','pm','design','techlead','dev','qc'];
+let bbChatTag = 'all';
+
+function agentsView(v) {
+  BB_AGENTS.forEach(a => {
+    document.getElementById('abtn-'+a)?.classList.remove('active');
+    const pane = document.getElementById('apane-'+a);
+    if (pane) pane.classList.toggle('hidden', v !== 'grid' && a !== v);
+  });
+  document.getElementById('abtn-grid')?.classList.remove('active');
+  document.getElementById('abtn-'+v)?.classList.add('active');
+  document.getElementById('agents-grid')?.classList.toggle('solo', v !== 'grid');
+}
+
+function chatTag(name) {
+  bbChatTag = name;
+  document.querySelectorAll('.chat-tag').forEach(b => b.classList.remove('active'));
+  document.getElementById('ctag-'+name)?.classList.add('active');
+}
+
+async function bbSend() {
+  const input = document.getElementById('bb-chat-input');
+  const msg = input.value.trim();
+  if (!msg) return;
+  input.value = '';
+  try {
+    const r = await fetch(BB_RELAY, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agent: bbChatTag, message: msg })
+    });
+    bbRelayDot(r.ok);
+  } catch { bbRelayDot(false); }
+}
+
+function bbRelayDot(ok) {
+  const d = document.getElementById('bb-relay-dot');
+  if (d) d.className = 'relay-dot ' + (ok ? 'ok' : 'err');
+}
+
+document.addEventListener('keydown', e => {
+  if (document.activeElement?.id === 'bb-chat-input' && e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault(); bbSend();
+  }
+});
+
+// Check relay status when agents page becomes visible
+function checkRelay() {
+  fetch(BB_RELAY, { method: 'OPTIONS' })
+    .then(r => bbRelayDot(r.ok)).catch(() => bbRelayDot(false));
 }
 
 // ── Boot ───────────────────────────────────────────────────────────

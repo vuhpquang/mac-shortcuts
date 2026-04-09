@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Agent Dashboard</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0d1117; color: #e6edf3;
+      font-family: 'SF Mono', 'Fira Code', Consolas, monospace;
+      height: 100vh; display: flex; flex-direction: column;
+    }
+
+    /* ── Header ── */
+    .header {
+      display: flex; align-items: center; gap: 8px;
+      padding: 6px 12px; background: #161b22;
+      border-bottom: 1px solid #30363d; flex-shrink: 0;
+    }
+    .header-title { font-size: 11px; font-weight: 700; color: #58a6ff; letter-spacing: .8px; text-transform: uppercase; }
+    .sep { color: #30363d; }
+    .vbtn {
+      padding: 3px 9px; border: 1px solid #30363d;
+      border-radius: 3px; background: #21262d; color: #8b949e;
+      font-size: 11px; cursor: pointer; font-family: inherit;
+    }
+    .vbtn:hover { border-color: #58a6ff; color: #58a6ff; }
+    .vbtn.active { background: #1f4080; color: #58a6ff; border-color: #58a6ff; }
+
+    /* ── Grid ── */
+    #grid {
+      flex: 1; display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      grid-template-rows: 1fr 1fr;
+      gap: 2px; background: #21262d; min-height: 0;
+    }
+    #grid.solo { grid-template-columns: 1fr; grid-template-rows: 1fr; }
+    #grid.duo  { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr; }
+
+    .pane { position: relative; background: #0d1117; overflow: hidden; }
+    .pane.hidden { display: none; }
+    .pane iframe { width: 100%; height: 100%; border: none; display: block; }
+    .pane-lbl {
+      position: absolute; top: 5px; left: 8px; z-index: 10;
+      background: rgba(13,17,23,.9); color: #58a6ff;
+      font-size: 10px; font-weight: 700; padding: 2px 7px;
+      border-radius: 3px; pointer-events: none; letter-spacing: .5px;
+      text-transform: uppercase; border: 1px solid #1f4080;
+    }
+
+    /* ── Chat bar ── */
+    .chat-bar {
+      display: flex; align-items: center; gap: 8px;
+      padding: 6px 12px; background: #161b22;
+      border-top: 1px solid #30363d; flex-shrink: 0;
+    }
+    .tag-btns { display: flex; gap: 3px; flex-shrink: 0; }
+    .tbtn {
+      padding: 4px 9px; border: 1px solid #30363d;
+      border-radius: 3px; background: #21262d; color: #8b949e;
+      font-size: 11px; cursor: pointer; font-family: inherit;
+    }
+    .tbtn:hover { border-color: #58a6ff; color: #58a6ff; }
+    .tbtn.active { background: #1f4080; color: #58a6ff; border-color: #58a6ff; }
+    .tbtn.all.active { background: #1a3a1f; color: #3fb950; border-color: #3fb950; }
+
+    .msg-input {
+      flex: 1; background: #21262d; border: 1px solid #30363d;
+      border-radius: 4px; color: #e6edf3; padding: 6px 10px;
+      font-size: 13px; font-family: inherit; outline: none; min-width: 0;
+    }
+    .msg-input:focus { border-color: #58a6ff; }
+    .msg-input::placeholder { color: #484f58; }
+
+    .send-btn {
+      padding: 6px 14px; background: #1f4080; color: #58a6ff;
+      border: 1px solid #58a6ff; border-radius: 4px;
+      cursor: pointer; font-size: 13px; font-family: inherit; flex-shrink: 0;
+    }
+    .send-btn:hover { background: #58a6ff; color: #0d1117; }
+
+    .rdot { width: 6px; height: 6px; border-radius: 50%; background: #484f58; flex-shrink: 0; }
+    .rdot.ok  { background: #3fb950; }
+    .rdot.err { background: #f85149; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <span class="header-title">Agents</span>
+  <span class="sep">|</span>
+  <button class="vbtn active" id="vbtn-grid"     onclick="setView('grid')">Grid</button>
+  <button class="vbtn"        id="vbtn-po"        onclick="setView('po')">PO</button>
+  <button class="vbtn"        id="vbtn-pm"        onclick="setView('pm')">PM</button>
+  <button class="vbtn"        id="vbtn-design"    onclick="setView('design')">Design</button>
+  <button class="vbtn"        id="vbtn-techlead"  onclick="setView('techlead')">TechLead</button>
+  <button class="vbtn"        id="vbtn-dev"       onclick="setView('dev')">Dev</button>
+  <button class="vbtn"        id="vbtn-qc"        onclick="setView('qc')">QC</button>
+  <span style="margin-left:auto;font-size:10px;color:#484f58">relay</span>
+  <span class="rdot" id="rdot" title="Chat relay :7690"></span>
+</div>
+
+<div id="grid">
+  <div class="pane" id="pane-po">
+    <div class="pane-lbl">PO</div>
+    <iframe src="http://localhost:7681" loading="lazy"></iframe>
+  </div>
+  <div class="pane" id="pane-pm">
+    <div class="pane-lbl">PM</div>
+    <iframe src="http://localhost:7682" loading="lazy"></iframe>
+  </div>
+  <div class="pane" id="pane-design">
+    <div class="pane-lbl">Design</div>
+    <iframe src="http://localhost:7683" loading="lazy"></iframe>
+  </div>
+  <div class="pane" id="pane-techlead">
+    <div class="pane-lbl">TechLead</div>
+    <iframe src="http://localhost:7684" loading="lazy"></iframe>
+  </div>
+  <div class="pane" id="pane-dev">
+    <div class="pane-lbl">Dev</div>
+    <iframe src="http://localhost:7685" loading="lazy"></iframe>
+  </div>
+  <div class="pane" id="pane-qc">
+    <div class="pane-lbl">QC</div>
+    <iframe src="http://localhost:7686" loading="lazy"></iframe>
+  </div>
+</div>
+
+<div class="chat-bar">
+  <div class="tag-btns">
+    <button class="tbtn all active" id="tag-all"      onclick="selectTag('all')">All</button>
+    <button class="tbtn"            id="tag-po"        onclick="selectTag('po')">PO</button>
+    <button class="tbtn"            id="tag-pm"        onclick="selectTag('pm')">PM</button>
+    <button class="tbtn"            id="tag-design"    onclick="selectTag('design')">Design</button>
+    <button class="tbtn"            id="tag-techlead"  onclick="selectTag('techlead')">TechLead</button>
+    <button class="tbtn"            id="tag-dev"       onclick="selectTag('dev')">Dev</button>
+    <button class="tbtn"            id="tag-qc"        onclick="selectTag('qc')">QC</button>
+  </div>
+  <input  class="msg-input" id="msg-input"
+          placeholder="Type message — Enter to send" />
+  <button class="send-btn" onclick="send()">Send</button>
+</div>
+
+<script>
+const RELAY = 'http://localhost:7690/send';
+const ALL_AGENTS = ['po','pm','design','techlead','dev','qc'];
+let activeTag = 'all';
+
+function setView(v) {
+  document.querySelectorAll('.vbtn').forEach(b => b.classList.remove('active'));
+  document.getElementById('vbtn-'+v).classList.add('active');
+  const grid = document.getElementById('grid');
+  grid.className = v === 'grid' ? '' : 'solo';
+  ALL_AGENTS.forEach(a => {
+    document.getElementById('pane-'+a).classList.toggle('hidden', v !== 'grid' && a !== v);
+  });
+}
+
+function selectTag(t) {
+  activeTag = t;
+  document.querySelectorAll('.tbtn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tag-'+t).classList.add('active');
+}
+
+async function send() {
+  const input = document.getElementById('msg-input');
+  const msg = input.value.trim();
+  if (!msg) return;
+  input.value = '';
+  try {
+    const r = await fetch(RELAY, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agent: activeTag, message: msg })
+    });
+    dot(r.ok);
+  } catch { dot(false); }
+}
+
+function dot(ok) {
+  document.getElementById('rdot').className = 'rdot ' + (ok ? 'ok' : 'err');
+}
+
+document.getElementById('msg-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+});
+
+// Check relay on load
+fetch(RELAY, { method: 'OPTIONS' }).then(r => dot(r.ok)).catch(() => dot(false));
+</script>
+</body>
+</html>
