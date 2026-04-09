@@ -248,8 +248,9 @@ details .det-body { font-size:12px; color:var(--muted); line-height:1.6; padding
   grid-template-rows: 1fr 1fr;
   gap: 2px; background: var(--surface2); min-height: 0;
 }
+.agents-grid .agent-pane:nth-child(3) { grid-row: span 2; }
 .agents-grid .agent-pane:nth-child(4) { grid-column: span 1; }
-.agents-grid .agent-pane:nth-child(5) { grid-column: span 2; }
+.agents-grid .agent-pane:nth-child(5) { grid-column: span 1; }
 .agents-grid.solo { grid-template-columns: 1fr; grid-template-rows: 1fr; }
 .agents-grid.solo .agent-pane:nth-child(n) { grid-column: span 1; }
 .agent-pane { position: relative; background: var(--bg); overflow: hidden; }
