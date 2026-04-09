@@ -12,52 +12,45 @@ An agent-team framework for running autonomous AI software teams, with full supp
                         │  design[] code[] test_results[] bugs[]  │
                         └─────────────────┬───────────────────────┘
                                           │ read/write
-          ┌───────────────────────────────┼───────────────────────────────┐
-          │                               │                               │
-          ▼                               ▼                               ▼
-   ┌─────────────┐              ┌──────────────────┐             ┌──────────────┐
-   │   PO Agent  │──features──▶ │    PM Agent      │──tasks──▶   │ Design Agent │
-   │  (po.md)    │              │   (pm.md)        │             │ (design.md)  │
-   └─────────────┘              └──────────────────┘             └──────┬───────┘
-   Defines features              Splits features                  UI/UX design
-   from project goal             into tasks                       per feature
-          │                                                              │
-          └──────────────────────────────┬───────────────────────────────┘
-                                         │ architecture input
-                                         ▼
-                                ┌─────────────────┐
-                                │  TechLead Agent │◀── only agent with git
-                                │  (techlead.md)  │
-                                └────────┬────────┘
-                                         │ architecture + decisions
-                    ┌────────────────────┼────────────────────┐
-                    │                    │                    │
-                    ▼                    ▼                    ▼
-           ┌──────────────┐    ┌──────────────────┐  ┌──────────────┐
-           │  Dev Agent   │    │  Worker (×N)     │  │   QC Agent   │
-           │  (dev.md)    │───▶│  (worker.md)     │  │   (qc.md)   │
-           └──────────────┘    └──────────────────┘  └──────────────┘
-           Programmer           Spawned via Task         Verifies features,
-           Supervisor           tool per task            writes test_results[]
-                                claude-haiku             and bugs[]
+     ┌────────────────────────────────────┼──────────────────────┐
+     │                                    │                      │
+     ▼                                    ▼                      ▼
+┌──────────────────┐             ┌──────────────────┐   ┌──────────────┐
+│ Researcher Agent │──features──▶│  TechLead Agent  │   │ Design Agent │
+│ (researcher.md)  │             │  (techlead.md)   │   │ (design.md)  │
+└──────────────────┘             └────────┬─────────┘   └──────────────┘
+Market research:                 Phase 0: tasks[]         UI/UX design
+- user pain points               Phase 1: architecture    per feature
+- competitor gaps                Phase 2: git commit
+- feature opportunities          Phase 3: release
+                                 ◀── ONLY agent with git
+                                          │
+                    ┌────────────────────┐│
+                    │                    ▼▼
+           ┌──────────────┐    ┌──────────────────┐    ┌──────────────┐
+           │  Dev Agent   │───▶│  Worker (×N)     │    │   QC Agent   │
+           │  (dev.md)    │    │  (worker.md)     │    │   (qc.md)    │
+           └──────────────┘    └──────────────────┘    └──────────────┘
+           Programmer           Spawned via Task          Verifies features,
+           Supervisor           tool per task             writes test_results[]
+                                claude-haiku              and bugs[]
 ```
 
 ### Agent roles & blackboard access
 
-| Agent      | Reads                          | Writes                          |
-|------------|--------------------------------|---------------------------------|
-| PO         | project.goal                   | features[]                      |
-| PM         | features[]                     | tasks[]                         |
-| Design     | features[], tasks[]            | design[]                        |
-| TechLead   | ALL                            | architecture, decisions[], git  |
-| Dev        | tasks[], architecture          | tasks[].status                  |
-| Worker     | tasks[assigned], architecture  | code[], files in projects/      |
-| QC         | features[], code[]             | test_results[], bugs[]          |
+| Agent      | Reads                          | Writes                                   |
+|------------|--------------------------------|------------------------------------------|
+| Researcher | context.md (goal + domain)     | features[] (with market rationale)       |
+| Design     | features[], tasks[]            | design[]                                 |
+| TechLead   | ALL                            | tasks[], architecture, decisions[], git  |
+| Dev        | tasks[], architecture          | tasks[].status                           |
+| Worker     | tasks[assigned], architecture  | code[], files in projects/               |
+| QC         | features[], code[]             | test_results[], bugs[]                   |
 
 ### Pipeline flow
 
 ```
-PO → PM → Design → TechLead (arch) → Dev → Workers → TechLead (commit) → QC → TechLead (release)
+Researcher → Design → TechLead (tasks+arch) → Dev → Workers → TechLead (commit) → QC → TechLead (release)
 ```
 
 Human escalation at any step via `bash scripts/ask_human.sh "question" {project}`.
@@ -68,8 +61,8 @@ Human escalation at any step via `bash scripts/ask_human.sh "question" {project}
 
 ```
 .claude/
-  agents/         ← agent definitions (po, pm, design, techlead, dev, qc, worker)
-  commands/       ← project slash commands (/init-project, /run-team, /run-solo)
+  agents/         ← agent definitions (researcher, design, techlead, dev, qc, worker)
+  commands/       ← slash commands (/new-project, /run-team, /run-solo, /project-status, /fix-bugs, /request-merge)
 projects/         ← git submodules, one per project
 blackboard/
   projects.json   ← registry of all project names

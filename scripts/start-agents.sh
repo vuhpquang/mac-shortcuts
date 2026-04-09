@@ -6,12 +6,11 @@ ROOT="$(dirname "$SCRIPT_DIR")"
 
 # name:port
 AGENTS=(
-  "po:7681"
-  "pm:7682"
-  "design:7683"
-  "techlead:7684"
-  "dev:7685"
-  "qc:7686"
+  "researcher:7681"
+  "design:7682"
+  "techlead:7683"
+  "dev:7684"
+  "qc:7685"
 )
 RELAY_PORT=7690
 
@@ -72,7 +71,7 @@ cat > "$RELAY_SCRIPT" <<'PYEOF'
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import json, subprocess, sys
 
-VALID = {'po', 'pm', 'design', 'techlead', 'dev', 'qc'}
+VALID = {'researcher', 'design', 'techlead', 'dev', 'qc'}
 
 class H(BaseHTTPRequestHandler):
     def _cors(self):
@@ -107,6 +106,6 @@ PYEOF
 python3 "$RELAY_SCRIPT" "$RELAY_PORT" &
 echo "Chat relay on port $RELAY_PORT"
 echo ""
-echo "  Ports: po=7681  pm=7682  design=7683  techlead=7684  dev=7685  qc=7686"
+echo "  Ports: researcher=7681  design=7682  techlead=7683  dev=7684  qc=7685"
 echo "  Relay: $RELAY_PORT"
 echo "  Local view: tmux attach -t agents"

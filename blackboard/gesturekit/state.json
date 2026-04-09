@@ -3,7 +3,7 @@
     "id": "gesturekit",
     "name": "gesturekit",
     "goal": "A macOS menu bar app that detects multitouch trackpad gestures and maps them to system actions (middle click, Mission Control, etc.)",
-    "status": "released"
+    "status": "qc_done"
   },
   "features": [
     {
@@ -672,6 +672,42 @@
       "status": "fixed",
       "verified_by": "qc_agent",
       "verification_notes": "Confirmed: DeviceMonitor now uses 'private var deviceContextPointers: [UnsafeMutableRawPointer] = []'. registerCallback(for:) calls Unmanaged.passRetained(self).toOpaque() per device and appends the pointer to the array. stop() iterates the array and releases each pointer via Unmanaged<DeviceMonitor>.fromOpaque(ptr).release(). The global bridge singleton is gone."
+    },
+    {
+      "id": "BUG-04",
+      "feature_id": "F03",
+      "task_id": "T10",
+      "description": "threeFingerClick gesture is completely unimplemented. GestureEvent enum only has threeFingerTap and forceClickCorner(Corner) — the threeFingerClick case is absent. processThreeFinger() discards sustained 3-finger contacts silently instead of emitting threeFingerClick when contact duration exceeds clickMinDuration (0.18s). Required work: (1) add threeFingerClick case to GestureEvent enum; (2) in processThreeFinger(), track when 3 fingers are held >= clickMinDuration and emit threeFingerClick once at threshold crossing, resetting tapFired to prevent tap from also firing.",
+      "severity": "high",
+      "assigned_to": "worker",
+      "status": "open"
+    },
+    {
+      "id": "BUG-05",
+      "feature_id": "F04",
+      "task_id": "T12",
+      "description": "GestureMapping struct is missing the threeFingerClick slot. The struct only defines 5 properties (threeFingerTap, cornerTopLeft, cornerTopRight, cornerBottomLeft, cornerBottomRight). Feature spec requires 6 slots. Required work: (1) add 'var threeFingerClick: GestureAction' to GestureMapping; (2) update GestureMapping.defaults to include threeFingerClick (.none by default); (3) update action(for:) to handle the threeFingerClick case once GestureEvent.threeFingerClick exists.",
+      "severity": "high",
+      "assigned_to": "worker",
+      "status": "open"
+    },
+    {
+      "id": "BUG-06",
+      "feature_id": "F06",
+      "task_id": "T18",
+      "description": "SettingsView window has two spec deviations: (1) frame is 480x480 but spec requires 480x520; (2) window title displayed in the view header is 'Mac Shortcuts Settings' instead of 'GestureKit Settings'. The header Text in SettingsView.swift reads 'Mac Shortcuts Settings' and the frame is .frame(width: 480, height: 480). Both should be corrected to match the feature spec and design.",
+      "severity": "medium",
+      "assigned_to": "worker",
+      "status": "open"
+    },
+    {
+      "id": "BUG-07",
+      "feature_id": "F06",
+      "task_id": "T19",
+      "description": "SettingsView gestureSlotList only renders 5 rows (Three Finger Tap + 4 Force Click corners) — the Three Finger Click row is missing. This is a downstream consequence of BUG-05 (GestureMapping missing threeFingerClick slot). Once BUG-05 is fixed and GestureMapping gains the threeFingerClick property, a GestureSlotRow for 'Three Finger Click' bound to $mapping.threeFingerClick must be added as the second row in gestureSlotList (between Three Finger Tap and Force Click — Top Left).",
+      "severity": "high",
+      "assigned_to": "worker",
+      "status": "open"
     }
   ],
   "decisions": [
@@ -770,37 +806,37 @@
     {
       "feature_id": "F01",
       "status": "passed",
-      "notes": "Package.swift exists with correct SPM target. main.swift boots the app manually (required for SPM executables). AppDelegate conforms to NSApplicationDelegate, holds strong references to MenuBarController and PermissionsManager, integrates GestureCoordinator. MenuBarController creates NSStatusItem with SF Symbol icon, builds the menu (Settings, separator, Quit), shows/hides Accessibility warning item, opens a 480x520 floating NSWindow hosting SettingsView. PermissionsManager implements AXIsProcessTrusted(), AXIsProcessTrustedWithOptions prompt, and pollUntilGranted(completion:) on a background queue. Info.plist has LSUIElement=YES, LSBackgroundOnly=NO, NSAccessibilityUsageDescription."
+      "notes": "Package.swift exists with correct SPM target. main.swift boots the app manually (required for SPM executables). AppDelegate conforms to NSApplicationDelegate, holds strong references to MenuBarController and PermissionsManager, integrates GestureCoordinator. Also adds sleep/wake observers to restart gesture engine after machine wake. MenuBarController creates NSStatusItem with SF Symbol icon, builds the menu (Settings, separator, Quit), shows/hides Accessibility warning item, opens a floating NSWindow hosting SettingsView. PermissionsManager implements AXIsProcessTrusted(), AXIsProcessTrustedWithOptions prompt, and pollUntilGranted(completion:) on a background queue. Info.plist has LSUIElement=YES, LSBackgroundOnly=NO, NSAccessibilityUsageDescription."
     },
     {
       "feature_id": "F02",
       "status": "passed",
-      "notes": "MultitouchFramework.swift loads the private framework via dlopen at the correct path, binds all four required symbols (MTDeviceCreateList, MTRegisterContactFrameCallback, MTDeviceStart, MTDeviceStop) via dlsym with unsafeBitCast to typed function pointer aliases, is a lazy singleton, sets isAvailable=false on failure (graceful degradation). TouchModels.swift declares MTPoint, MTVector, MTFinger (all required fields: frame, identifier, normalized, size, angle, majorAxis, minorAxis, zTotal, state, substate), MTDevice as OpaquePointer typealias, FingerState enum, and MTContactFrameCallback type alias. DeviceMonitor.swift enumerates devices, registers C-compatible @convention(c) callback via MTRegisterContactFrameCallback, converts raw C array to [MTFinger], forwards to DeviceMonitorDelegate. Minor: multi-device bridge pointer issue logged as BUG-03."
+      "notes": "MultitouchFramework.swift loads the private framework via dlopen at the correct path, binds all four required symbols (MTDeviceCreateList, MTRegisterContactFrameCallback, MTDeviceStart, MTDeviceStop) via dlsym with unsafeBitCast to typed function pointer aliases, is a lazy singleton, sets isAvailable=false on failure (graceful degradation). TouchModels.swift declares MTPoint, MTVector, MTFinger (all required fields: frame, identifier, normalized, size, angle, majorAxis, minorAxis, zTotal, state, substate), MTDevice as OpaquePointer typealias, FingerState enum, and MTContactFrameCallback type alias. DeviceMonitor.swift enumerates devices, registers C-compatible @convention(c) callback via MTRegisterContactFrameCallback, converts raw C array to [MTFinger], forwards to DeviceMonitorDelegate. BUG-03 (multi-device bridge pointer) confirmed fixed via per-device Unmanaged retained pointers."
     },
     {
       "feature_id": "F03",
-      "status": "passed",
-      "notes": "GestureRecognizer.swift implements GestureEvent enum (threeFingerTap, threeFingerClick, forceClickCorner(Corner)) and Corner enum (topLeft, topRight, bottomLeft, bottomRight). ThreeFingerTap: fires on lift when contact duration < 0.18s and no click was already fired. ThreeFingerClick: fires once when 3 fingers held >= 0.18s. ForceClickCorner: detects single finger with zTotal >= 0.30 in a 0.15 corner zone on all 4 corners using normalized trackpad coordinates. State is properly debounced per gesture cycle. Conforms to DeviceMonitorDelegate and emits via GestureRecognizerDelegate."
+      "status": "failed",
+      "notes": "MISSING: threeFingerClick gesture is entirely absent from the implementation. GestureEvent enum only defines threeFingerTap and forceClickCorner(Corner) — the threeFingerClick case is not present. processThreeFinger() only emits threeFingerTap (contact < tapMaxDuration) and silently discards sustained contacts; no threeFingerClick event is ever emitted. Feature spec requires ThreeFingerTap, ThreeFingerClick (sustained contact), and ForceClickCorner for all four corners. ForceClickCorner detection and ThreeFingerTap work correctly. BUG-04 filed."
     },
     {
       "feature_id": "F04",
-      "status": "passed",
-      "notes": "GestureAction.swift declares all 6 required action types plus 'none': middleClick, keystroke(key:modifiers:), openApp(bundleID:), missionControl, appExpose, showDesktop. Full Codable, Equatable, Hashable, CaseIterable (manual allCases) conformance. GestureMapping.swift has all 6 gesture slots, UserDefaults load/save with JSON encoding under key 'gestureMapping', correct defaults (threeFingerTap->middleClick, cornerTopLeft->missionControl). ActionExecutor.swift is a singleton, execute() dispatches all 6 action types: middleClick via CGEvent otherMouseDown/Up, missionControl via virtual key 0xA0, appExpose via Ctrl+DownArrow CGEvent, showDesktop via virtual key 0xA3, keystroke via CGEvent with UniChar, openApp via NSWorkspace.openApplication."
+      "status": "failed",
+      "notes": "GestureAction.swift is correct — all 7 action types (none + 6) with full Codable/Equatable/Hashable/CaseIterable conformance. ActionExecutor.swift correctly implements all action types. MISSING: GestureMapping struct only defines 5 gesture slots (threeFingerTap, cornerTopLeft, cornerTopRight, cornerBottomLeft, cornerBottomRight) — the threeFingerClick slot is absent. Feature spec requires 6 slots. The action(for:) switch statement also has no case for threeFingerClick since the GestureEvent case does not exist. BUG-05 filed."
     },
     {
       "feature_id": "F05",
       "status": "passed",
-      "notes": "GestureCoordinator.swift is a singleton (shared), owns DeviceMonitor and GestureRecognizer, wires them together in init (deviceMonitor.delegate = gestureRecognizer, gestureRecognizer.delegate = self), conforms to GestureRecognizerDelegate. didRecognize() looks up action from mapping and dispatches to ActionExecutor.shared.execute() on DispatchQueue.main. Provides start(), stop(), updateMapping() methods. AppDelegate loads GestureMapping.load() and calls updateMapping() before start(), defers start() until permissions granted via pollUntilGranted."
+      "notes": "GestureCoordinator.swift is a singleton (shared), owns DeviceMonitor and GestureRecognizer, wires them together in init (deviceMonitor.delegate = gestureRecognizer, gestureRecognizer.delegate = self), conforms to GestureRecognizerDelegate. didRecognize() looks up action from mapping and dispatches to ActionExecutor.shared.execute() on DispatchQueue.main. Provides start(), stop(), updateMapping() methods. AppDelegate loads GestureMapping.load() and calls updateMapping() before start(), defers start() until permissions granted via pollUntilGranted. Note: threeFingerClick will work correctly once BUG-04/BUG-05 are fixed — no changes needed in GestureCoordinator itself."
     },
     {
       "feature_id": "F06",
-      "status": "passed",
-      "notes": "SettingsView.swift is SwiftUI, frame 480x520 with .fixedSize(). Displays all 6 gesture slots (Three Finger Tap, Three Finger Click, Force Click Top/Right/Bottom Left/Right) each with a Picker(.menu) bound to the corresponding GestureMapping field. .onChange(of: mapping) saves to UserDefaults and calls GestureCoordinator.shared.updateMapping() immediately. Conditional KeystrokeField (inline text field) and AppPickerButton (NSOpenPanel) shown for keystroke/openApp actions. Header with icon and title, footer 'Changes take effect immediately'. NSWindow in MenuBarController uses [.titled, .closable] styleMask (no resize/minimize/fullscreen) with weak reference guard against duplicate windows."
+      "status": "failed",
+      "notes": "Three issues found: (1) SettingsView only shows 5 gesture rows (Three Finger Tap + 4 Force Click corners) — Three Finger Click row is missing because GestureMapping lacks the slot. (2) Window frame is 480x480, spec requires 480x520. (3) Window title is 'Mac Shortcuts Settings', spec requires 'GestureKit Settings'. KeystrokeField, AppPickerButton, .onChange persistence, and footer text are all correctly implemented. BUG-06 filed for the title/frame issues; BUG-07 filed for missing Three Finger Click row."
     },
     {
       "feature_id": "F07",
       "status": "passed",
-      "notes": "README.md exists and is comprehensive: covers system requirements, installation, Accessibility permission grant steps, default gesture table, customization instructions, and troubleshooting. build.sh is correct for SPM: uses 'swift build -c release --arch arm64 --arch x86_64' (no xcodebuild), produces universal binary at .build/apple/Products/Release/GestureKit, then codesigns, packages to DMG with hdiutil and Applications symlink, supports optional notarization via NOTARIZE=1 env var. Package.swift has swiftSettings: [] with no unsafeFlags. BUG-01 and BUG-02 confirmed fixed. F07 now passes."
+      "notes": "README.md exists and is comprehensive: covers system requirements, installation, Accessibility permission grant steps, default gesture table, customization instructions, and troubleshooting. build.sh is correct for SPM: uses 'swift build -c release --arch arm64 --arch x86_64' (no xcodebuild), produces universal binary at .build/apple/Products/Release/GestureKit, then codesigns, packages to DMG with hdiutil and Applications symlink, supports optional notarization via NOTARIZE=1 env var. Package.swift has swiftSettings: [] with no unsafeFlags. BUG-01 and BUG-02 confirmed fixed."
     }
   ],
   "write_lock": null

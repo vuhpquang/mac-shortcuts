@@ -1,1 +1,4 @@
 projects/ # submodules tracked separately
+
+.DS_Store
+**/.DS_Store

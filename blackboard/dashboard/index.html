@@ -248,7 +248,10 @@ details .det-body { font-size:12px; color:var(--muted); line-height:1.6; padding
   grid-template-rows: 1fr 1fr;
   gap: 2px; background: var(--surface2); min-height: 0;
 }
+.agents-grid .agent-pane:nth-child(4) { grid-column: span 1; }
+.agents-grid .agent-pane:nth-child(5) { grid-column: span 2; }
 .agents-grid.solo { grid-template-columns: 1fr; grid-template-rows: 1fr; }
+.agents-grid.solo .agent-pane:nth-child(n) { grid-column: span 1; }
 .agent-pane { position: relative; background: var(--bg); overflow: hidden; }
 .agent-pane.hidden { display: none; }
 .agent-pane iframe { width: 100%; height: 100%; border: none; display: block; }
@@ -469,53 +472,47 @@ details .det-body { font-size:12px; color:var(--muted); line-height:1.6; padding
     <div class="agents-toolbar">
       <span class="agents-toolbar-title">Agents</span>
       <span style="color:var(--border)">|</span>
-      <button class="av-btn active" id="abtn-grid"     onclick="agentsView('grid')">Grid</button>
-      <button class="av-btn"        id="abtn-po"       onclick="agentsView('po')">PO</button>
-      <button class="av-btn"        id="abtn-pm"       onclick="agentsView('pm')">PM</button>
-      <button class="av-btn"        id="abtn-design"   onclick="agentsView('design')">Design</button>
-      <button class="av-btn"        id="abtn-techlead" onclick="agentsView('techlead')">TechLead</button>
-      <button class="av-btn"        id="abtn-dev"      onclick="agentsView('dev')">Dev</button>
-      <button class="av-btn"        id="abtn-qc"       onclick="agentsView('qc')">QC</button>
+      <button class="av-btn active" id="abtn-grid"       onclick="agentsView('grid')">Grid</button>
+      <button class="av-btn"        id="abtn-researcher" onclick="agentsView('researcher')">Researcher</button>
+      <button class="av-btn"        id="abtn-design"     onclick="agentsView('design')">Design</button>
+      <button class="av-btn"        id="abtn-techlead"   onclick="agentsView('techlead')">TechLead</button>
+      <button class="av-btn"        id="abtn-dev"        onclick="agentsView('dev')">Dev</button>
+      <button class="av-btn"        id="abtn-qc"         onclick="agentsView('qc')">QC</button>
       <span style="margin-left:auto;font-size:11px;color:var(--dim)">relay</span>
       <span class="relay-dot" id="bb-relay-dot" title="Chat relay (port 7690)"></span>
     </div>
 
     <div class="agents-grid" id="agents-grid">
-      <div class="agent-pane" id="apane-po">
-        <div class="agent-pane-lbl">PO</div>
+      <div class="agent-pane" id="apane-researcher">
+        <div class="agent-pane-lbl">Researcher</div>
         <iframe src="http://localhost:7681" loading="lazy"></iframe>
-      </div>
-      <div class="agent-pane" id="apane-pm">
-        <div class="agent-pane-lbl">PM</div>
-        <iframe src="http://localhost:7682" loading="lazy"></iframe>
       </div>
       <div class="agent-pane" id="apane-design">
         <div class="agent-pane-lbl">Design</div>
-        <iframe src="http://localhost:7683" loading="lazy"></iframe>
+        <iframe src="http://localhost:7682" loading="lazy"></iframe>
       </div>
       <div class="agent-pane" id="apane-techlead">
         <div class="agent-pane-lbl">TechLead</div>
-        <iframe src="http://localhost:7684" loading="lazy"></iframe>
+        <iframe src="http://localhost:7683" loading="lazy"></iframe>
       </div>
       <div class="agent-pane" id="apane-dev">
         <div class="agent-pane-lbl">Dev</div>
-        <iframe src="http://localhost:7685" loading="lazy"></iframe>
+        <iframe src="http://localhost:7684" loading="lazy"></iframe>
       </div>
       <div class="agent-pane" id="apane-qc">
         <div class="agent-pane-lbl">QC</div>
-        <iframe src="http://localhost:7686" loading="lazy"></iframe>
+        <iframe src="http://localhost:7685" loading="lazy"></iframe>
       </div>
     </div>
 
     <div class="agents-chat">
       <div class="chat-tag-btns">
-        <button class="chat-tag all active" id="ctag-all"      onclick="chatTag('all')">All</button>
-        <button class="chat-tag"            id="ctag-po"       onclick="chatTag('po')">PO</button>
-        <button class="chat-tag"            id="ctag-pm"       onclick="chatTag('pm')">PM</button>
-        <button class="chat-tag"            id="ctag-design"   onclick="chatTag('design')">Design</button>
-        <button class="chat-tag"            id="ctag-techlead" onclick="chatTag('techlead')">TechLead</button>
-        <button class="chat-tag"            id="ctag-dev"      onclick="chatTag('dev')">Dev</button>
-        <button class="chat-tag"            id="ctag-qc"       onclick="chatTag('qc')">QC</button>
+        <button class="chat-tag all active" id="ctag-all"        onclick="chatTag('all')">All</button>
+        <button class="chat-tag"            id="ctag-researcher" onclick="chatTag('researcher')">Researcher</button>
+        <button class="chat-tag"            id="ctag-design"     onclick="chatTag('design')">Design</button>
+        <button class="chat-tag"            id="ctag-techlead"   onclick="chatTag('techlead')">TechLead</button>
+        <button class="chat-tag"            id="ctag-dev"        onclick="chatTag('dev')">Dev</button>
+        <button class="chat-tag"            id="ctag-qc"         onclick="chatTag('qc')">QC</button>
       </div>
       <input class="chat-msg-input" id="bb-chat-input"
              placeholder="Send message to agent(s)… Enter to send" />
@@ -1085,7 +1082,7 @@ function renderArchitecture(arch) {
 
 // ── Agents page ────────────────────────────────────────────────────
 const BB_RELAY = 'http://localhost:7690/send';
-const BB_AGENTS = ['po','pm','design','techlead','dev','qc'];
+const BB_AGENTS = ['researcher','design','techlead','dev','qc'];
 let bbChatTag = 'all';
 
 function agentsView(v) {
