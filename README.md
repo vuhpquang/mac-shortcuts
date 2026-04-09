@@ -2,20 +2,99 @@
 
 An agent-team framework for running autonomous AI software teams, with full support for running **multiple projects in parallel** — each with its own isolated blackboard.
 
+## Agent Architecture
+
+```
+                        ┌─────────────────────────────────────────┐
+                        │            BLACKBOARD                   │
+                        │  blackboard/{project}/state.json        │
+                        │  features[] tasks[] architecture        │
+                        │  design[] code[] test_results[] bugs[]  │
+                        └─────────────────┬───────────────────────┘
+                                          │ read/write
+          ┌───────────────────────────────┼───────────────────────────────┐
+          │                               │                               │
+          ▼                               ▼                               ▼
+   ┌─────────────┐              ┌──────────────────┐             ┌──────────────┐
+   │   PO Agent  │──features──▶ │    PM Agent      │──tasks──▶   │ Design Agent │
+   │  (po.md)    │              │   (pm.md)        │             │ (design.md)  │
+   └─────────────┘              └──────────────────┘             └──────┬───────┘
+   Defines features              Splits features                  UI/UX design
+   from project goal             into tasks                       per feature
+          │                                                              │
+          └──────────────────────────────┬───────────────────────────────┘
+                                         │ architecture input
+                                         ▼
+                                ┌─────────────────┐
+                                │  TechLead Agent │◀── only agent with git
+                                │  (techlead.md)  │
+                                └────────┬────────┘
+                                         │ architecture + decisions
+                    ┌────────────────────┼────────────────────┐
+                    │                    │                    │
+                    ▼                    ▼                    ▼
+           ┌──────────────┐    ┌──────────────────┐  ┌──────────────┐
+           │  Dev Agent   │    │  Worker (×N)     │  │   QC Agent   │
+           │  (dev.md)    │───▶│  (worker.md)     │  │   (qc.md)   │
+           └──────────────┘    └──────────────────┘  └──────────────┘
+           Programmer           Spawned via Task         Verifies features,
+           Supervisor           tool per task            writes test_results[]
+                                claude-haiku             and bugs[]
+```
+
+### Agent roles & blackboard access
+
+| Agent      | Reads                          | Writes                          |
+|------------|--------------------------------|---------------------------------|
+| PO         | project.goal                   | features[]                      |
+| PM         | features[]                     | tasks[]                         |
+| Design     | features[], tasks[]            | design[]                        |
+| TechLead   | ALL                            | architecture, decisions[], git  |
+| Dev        | tasks[], architecture          | tasks[].status                  |
+| Worker     | tasks[assigned], architecture  | code[], files in projects/      |
+| QC         | features[], code[]             | test_results[], bugs[]          |
+
+### Pipeline flow
+
+```
+PO → PM → Design → TechLead (arch) → Dev → Workers → TechLead (commit) → QC → TechLead (release)
+```
+
+Human escalation at any step via `bash scripts/ask_human.sh "question" {project}`.
+
+---
+
 ## Project structure
 
 ```
-projects/          ← git submodules, one per project
+.claude/
+  agents/         ← agent definitions (po, pm, design, techlead, dev, qc, worker)
+  commands/       ← project slash commands (/init-project, /run-team, /run-solo)
+projects/         ← git submodules, one per project
 blackboard/
-  projects.json    ← registry of all project names
+  projects.json   ← registry of all project names
   {project}/
-    state.json     ← blackboard state for that project
-    context.md     ← project goals, tech stack, delivery plan
+    state.json    ← blackboard state for that project
+    context.md    ← project goals, tech stack, delivery plan
   dashboard/
-    index.html     ← visual dashboard (supports multi-project)
-prompts/           ← agent role prompts
-scripts/           ← run, init, spawn, ask scripts
+    index.html    ← visual dashboard (supports multi-project)
+prompts/          ← agent role prompts (source of truth for .claude/agents/)
+scripts/          ← run, init, spawn, ask scripts
+index.html        ← agent terminal grid (standalone)
+start.sh          ← one-command launcher
 ```
+
+---
+
+## Quick start
+
+```bash
+bash start.sh
+```
+
+Opens the browser to the dashboard with all 6 agents ready and waiting.
+
+---
 
 ## Init a new project
 
@@ -70,6 +149,7 @@ Then open: http://localhost:8000/dashboard/
 
 - Use the **project switcher** in the sidebar to switch between projects
 - Or link directly: `http://localhost:8000/dashboard/?project=gesturekit`
+- Click **Agents** in the sidebar to see all 6 live terminal panes + chat bar
 - The dashboard reads blackboard files dynamically — refresh to pick up changes
 
 ## Human escalation

@@ -3,16 +3,15 @@
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(dirname "$SCRIPT_DIR")"
-PROMPTS_DIR="$ROOT/prompts"
 
-# name:port:prompt_file
+# name:port
 AGENTS=(
-  "po:7681:po.md"
-  "pm:7682:pm.md"
-  "design:7683:design.md"
-  "techlead:7684:techlead.md"
-  "dev:7685:programmer_supervisor.md"
-  "qc:7686:qc.md"
+  "po:7681"
+  "pm:7682"
+  "design:7683"
+  "techlead:7684"
+  "dev:7685"
+  "qc:7686"
 )
 RELAY_PORT=7690
 
@@ -25,18 +24,14 @@ lsof -ti ":$RELAY_PORT" | xargs kill -9 2>/dev/null || true
 
 # ── Launch each agent ───────────────────────────────────────────────
 for entry in "${AGENTS[@]}"; do
-  IFS=: read -r NAME PORT PROMPT_FILE <<< "$entry"
-  ROLE_FILE="/tmp/agent-role-${NAME}.txt"
+  IFS=: read -r NAME PORT <<< "$entry"
   LAUNCHER="/tmp/agent-${NAME}.sh"
 
-  # Copy role prompt to temp file (avoids shell escaping headaches)
-  cp "$PROMPTS_DIR/$PROMPT_FILE" "$ROLE_FILE"
-
-  # Write a launcher script: claude starts with the role appended to system prompt
+  # Write launcher: use native .claude/agents/{name}.md via --agent flag
   {
     echo '#!/bin/bash'
     echo "cd $(printf '%q' "$ROOT")"
-    echo "exec claude --append-system-prompt \"\$(cat $(printf '%q' "$ROLE_FILE"))\" --name $(printf '%q' "$NAME")"
+    echo "exec claude --agent $(printf '%q' "$NAME") --name $(printf '%q' "$NAME")"
   } > "$LAUNCHER"
   chmod +x "$LAUNCHER"
 
