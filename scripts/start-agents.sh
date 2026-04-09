@@ -26,11 +26,11 @@ for entry in "${AGENTS[@]}"; do
   IFS=: read -r NAME PORT <<< "$entry"
   LAUNCHER="/tmp/agent-${NAME}.sh"
 
-  # Write launcher: use native .claude/agents/{name}.md via --agent flag
+  # Write launcher: start idle, no --agent flag so Claude waits for user input
   {
     echo '#!/bin/bash'
     echo "cd $(printf '%q' "$ROOT")"
-    echo "exec claude --dangerously-skip-permissions --agent $(printf '%q' "$NAME") --name $(printf '%q' "$NAME")"
+    echo "exec claude --dangerously-skip-permissions"
   } > "$LAUNCHER"
   chmod +x "$LAUNCHER"
 
