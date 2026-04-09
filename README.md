@@ -61,20 +61,37 @@ Human escalation at any step via `bash scripts/ask_human.sh "question" {project}
 
 ```
 .claude/
-  agents/         ← agent definitions (researcher, design, techlead, dev, qc, worker)
-  commands/       ← slash commands (/new-project, /run-team, /run-solo, /project-status, /fix-bugs, /request-merge)
-projects/         ← git submodules, one per project
+  agents/          ← agent role definitions (single source of truth)
+  │  researcher.md   market research → features[]
+  │  design.md       UI/UX design → design[]
+  │  techlead.md     task planning + architecture + git (phases 0–3)
+  │  dev.md          programmer supervisor → spawns workers
+  │  worker.md       single-task implementer (haiku, spawned by dev)
+  │  qc.md           verifies features → test_results[], bugs[]
+  commands/        ← project slash commands
+  │  /new-project      guided project setup
+  │  /run-team         start the full agent pipeline
+  │  /run-solo         single-agent mode
+  │  /project-status   show blackboard overview + next action
+  │  /fix-bugs         targeted bug-fix cycle after QC
+  │  /request-merge    validate readiness then merge develop → main
+scripts/           ← shell utilities called by agents and commands
+  │  run.sh            launch a project in solo|team mode
+  │  init_project.sh   create git submodule + blackboard namespace
+  │  start-agents.sh   launch all agent tmux sessions + ttyd + relay
+  │  ask_human.sh      human escalation — pause and capture answer to blackboard
+  │  request_merge.sh  stakeholder approval UI for develop → main merge
+projects/          ← git submodules, one per project
 blackboard/
-  projects.json   ← registry of all project names
+  projects.json    ← registry of all project names
   {project}/
-    state.json    ← blackboard state for that project
-    context.md    ← project goals, tech stack, delivery plan
+    state.json     ← blackboard state (features, tasks, code, bugs, tests)
+    context.md     ← project goal and tech stack
   dashboard/
-    index.html    ← visual dashboard (supports multi-project)
-prompts/          ← agent role prompts (source of truth for .claude/agents/)
-scripts/          ← run, init, spawn, ask scripts
-index.html        ← agent terminal grid (standalone)
-start.sh          ← one-command launcher
+    index.html     ← visual web dashboard (multi-project)
+run.md             ← orchestrator pipeline (read by run.sh team mode)
+index.html         ← standalone agent terminal grid
+start.sh           ← one-command launcher
 ```
 
 ---
