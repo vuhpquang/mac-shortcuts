@@ -1,0 +1,26 @@
+{
+  "project": {
+    "id": "sleepwave",
+    "name": "SleepWave",
+    "goal": "Android alarm app with sleep cycle detection — wakes you at the lightest sleep phase within a configurable window.",
+    "status": "planned"
+  },
+  "features": [
+    { "id": "F01", "title": "Foreground sensor service (accelerometer sampling)", "priority": "high", "status": "pending" },
+    { "id": "F02", "title": "Sleep phase classification algorithm", "priority": "high", "status": "pending" },
+    { "id": "F03", "title": "Smart alarm scheduling (AlarmManager + WakeLock)", "priority": "high", "status": "pending" },
+    { "id": "F04", "title": "Gradual volume ramp on wake", "priority": "high", "status": "pending" },
+    { "id": "F05", "title": "Dismiss screen with captcha/puzzle", "priority": "medium", "status": "pending" },
+    { "id": "F06", "title": "Sleep session history (Room DB)", "priority": "medium", "status": "pending" },
+    { "id": "F07", "title": "Sleep history chart UI", "priority": "medium", "status": "pending" },
+    { "id": "F08", "title": "Battery optimization exemption flow", "priority": "high", "status": "pending" },
+    { "id": "F09", "title": "Snooze with configurable limit", "priority": "low", "status": "pending" }
+  ],
+  "tasks": [],
+  "architecture": {},
+  "design": [],
+  "code": [],
+  "test_results": [],
+  "bugs": [],
+  "decisions": []
+}

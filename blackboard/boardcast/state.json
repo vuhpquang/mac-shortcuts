@@ -1,0 +1,26 @@
+{
+  "project": {
+    "id": "boardcast",
+    "name": "Boardcast",
+    "goal": "Host the agent team's blackboard as a live web app accessible remotely.",
+    "status": "planned"
+  },
+  "features": [
+    { "id": "F01", "title": "REST API for blackboard read/write", "priority": "high", "status": "pending" },
+    { "id": "F02", "title": "Real-time push via SSE/WebSocket", "priority": "high", "status": "pending" },
+    { "id": "F03", "title": "Token-based auth", "priority": "high", "status": "pending" },
+    { "id": "F04", "title": "Remote chat relay (POST /send → agent tmux)", "priority": "high", "status": "pending" },
+    { "id": "F05", "title": "Live blackboard dashboard UI", "priority": "high", "status": "pending" },
+    { "id": "F06", "title": "Project switcher", "priority": "medium", "status": "pending" },
+    { "id": "F07", "title": "Task editor (create / update / unblock)", "priority": "medium", "status": "pending" },
+    { "id": "F08", "title": "Decisions log viewer", "priority": "low", "status": "pending" },
+    { "id": "F09", "title": "Docker + deploy pipeline", "priority": "high", "status": "pending" }
+  ],
+  "tasks": [],
+  "architecture": {},
+  "design": [],
+  "code": [],
+  "test_results": [],
+  "bugs": [],
+  "decisions": []
+}

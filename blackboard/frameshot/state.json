@@ -1,0 +1,29 @@
+{
+  "project": {
+    "id": "frameshot",
+    "name": "FrameShot",
+    "goal": "macOS native screenshot capture and annotation tool — capture, annotate, copy, save, pin. Inspired by CleanShot X and Shottr.",
+    "status": "planned"
+  },
+  "features": [
+    { "id": "F01", "title": "Menu bar app + global hotkey", "priority": "high", "status": "pending" },
+    { "id": "F02", "title": "Region capture with crosshair overlay", "priority": "high", "status": "pending" },
+    { "id": "F03", "title": "Window capture (window picker)", "priority": "high", "status": "pending" },
+    { "id": "F04", "title": "Full screen capture", "priority": "high", "status": "pending" },
+    { "id": "F05", "title": "Annotation canvas (arrow, rect, circle, text, freehand)", "priority": "high", "status": "pending" },
+    { "id": "F06", "title": "Blur / pixelate tool for redaction", "priority": "medium", "status": "pending" },
+    { "id": "F07", "title": "Undo/redo annotation stack", "priority": "medium", "status": "pending" },
+    { "id": "F08", "title": "Copy to clipboard + save to file", "priority": "high", "status": "pending" },
+    { "id": "F09", "title": "Pin screenshot to screen (floating panel)", "priority": "medium", "status": "pending" },
+    { "id": "F10", "title": "Scrolling capture (auto-scroll + stitch)", "priority": "medium", "status": "pending" },
+    { "id": "F11", "title": "Capture history panel", "priority": "low", "status": "pending" },
+    { "id": "F12", "title": "Delay capture (timer)", "priority": "low", "status": "pending" }
+  ],
+  "tasks": [],
+  "architecture": {},
+  "design": [],
+  "code": [],
+  "test_results": [],
+  "bugs": [],
+  "decisions": []
+}

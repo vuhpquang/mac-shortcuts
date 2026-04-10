@@ -1,0 +1,27 @@
+{
+  "project": {
+    "id": "dayflow",
+    "name": "DayFlow",
+    "goal": "Multiplatform timeline calendar app — vertical day/week view on Android, Web, and macOS with Google Calendar sync.",
+    "status": "planned"
+  },
+  "features": [
+    { "id": "F01", "title": "Vertical timeline day view (hour slots, current time indicator)", "priority": "high", "status": "pending" },
+    { "id": "F02", "title": "Week view with day columns", "priority": "high", "status": "pending" },
+    { "id": "F03", "title": "Google Calendar OAuth sync (read + write)", "priority": "high", "status": "pending" },
+    { "id": "F04", "title": "Create / edit / delete events", "priority": "high", "status": "pending" },
+    { "id": "F05", "title": "Drag-and-drop event rescheduling", "priority": "medium", "status": "pending" },
+    { "id": "F06", "title": "Multiple calendar overlays with color coding", "priority": "medium", "status": "pending" },
+    { "id": "F07", "title": "Local cache + offline mode", "priority": "medium", "status": "pending" },
+    { "id": "F08", "title": "macOS menu bar integration", "priority": "medium", "status": "pending" },
+    { "id": "F09", "title": "Android home screen widget", "priority": "low", "status": "pending" },
+    { "id": "F10", "title": "Web PWA manifest + install prompt", "priority": "low", "status": "pending" }
+  ],
+  "tasks": [],
+  "architecture": {},
+  "design": [],
+  "code": [],
+  "test_results": [],
+  "bugs": [],
+  "decisions": []
+}
