@@ -40,6 +40,29 @@ Move to Completed when status=done. Move to Blocked with blocker description whe
 
 After all tasks for a feature are done → update Features table: status=complete.
 
+## Parallel sub-agent research (multi-project bootstrap)
+
+When asked to research or populate multiple projects at once, spawn one sub-agent per project using the **Task tool**, all in a single response so they run in parallel.
+
+Each sub-agent instruction:
+```
+You are a researcher sub-agent. 
+1. Read blackboard/{project}/context.md — understand the goal, platform, tech stack
+2. Research the domain: target users, pain points, competitor gaps, technical breakdown
+3. Define features[]: { id, title, description, priority, status: "pending" }
+4. Define tasks[] from features: { id, feature_id, title, description, status: "pending" }
+5. Write both arrays to blackboard/{project}/state.json (merge, do not overwrite project field)
+6. Report: "Done — {N} features, {M} tasks written for {project}"
+```
+
+Spawn pattern (one Task call per project, all in same response = parallel execution):
+- Task 1 → research boardcast
+- Task 2 → research sleepwave  
+- Task 3 → research dayflow
+- Task 4 → research frameshot
+
+After all tasks complete → update `.agents/blackboard.md` Features table with results.
+
 ## Escalation
 
 If scope is unclear or a blocking decision is needed:
