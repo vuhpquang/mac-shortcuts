@@ -9,24 +9,26 @@
 <link href="https://fonts.googleapis.com/css2?family=Momo+Signature&family=Momo+Trust+Display&family=Momo+Trust+Sans:wght@200..800&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg: #0d1117;
-  --surface: #161b22;
-  --surface2: #21262d;
-  --border: #30363d;
-  --text: #e6edf3;
-  --muted: #8b949e;
-  --dim: #484f58;
-  --accent: #58a6ff;
-  --accent-bg: #1f4080;
-  --green: #3fb950;
-  --green-bg: #1a3a1f;
-  --red: #f85149;
+  --bg: #282a36;
+  --surface: #21222c;
+  --surface2: #343746;
+  --border: #44475a;
+  --text: #f8f8f2;
+  --muted: #6272a4;
+  --dim: #44475a;
+  --accent: #bd93f9;
+  --accent-bg: #3a2d5e;
+  --green: #50fa7b;
+  --green-bg: #1a3a28;
+  --red: #ff5555;
   --red-bg: #3b1a1a;
-  --yellow: #d29922;
-  --yellow-bg: #3b2d00;
-  --purple: #bc8cff;
-  --purple-bg: #2d1f4a;
-  --orange: #e3b341;
+  --yellow: #f1fa8c;
+  --yellow-bg: #3b3a1a;
+  --purple: #bd93f9;
+  --purple-bg: #3a2d5e;
+  --orange: #ffb86c;
+  --pink: #ff79c6;
+  --cyan: #8be9fd;
   --r: 8px;
   --r-sm: 4px;
   --mono: 'SF Mono','Fira Code',Consolas,monospace;
@@ -825,8 +827,8 @@ function renderOverview(proj, features, tasks, bugs, tests) {
 // ── Charts ─────────────────────────────────────────────────────────
 const _charts = {};
 const C = {
-  green: '#3fb950', red: '#f85149', yellow: '#d29922',
-  blue: '#58a6ff', purple: '#bc8cff', gray: '#484f58', orange: '#e3b341'
+  green: '#50fa7b', red: '#ff5555', yellow: '#f1fa8c',
+  blue: '#8be9fd', purple: '#bd93f9', gray: '#44475a', orange: '#ffb86c', pink: '#ff79c6'
 };
 
 function donut(id, labels, data, colors, centerBig, centerSmall) {
