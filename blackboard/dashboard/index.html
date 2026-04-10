@@ -213,6 +213,15 @@ details .det-body { font-size:12px; color:var(--muted); line-height:1.6; padding
 .proj-btn .proj-check { opacity:0; font-size:12px; }
 .proj-btn.active .proj-check { opacity:1; }
 
+/* ── Charts ── */
+.charts-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px; margin-top:20px; }
+.chart-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--r); padding:16px; }
+.chart-title { font-size:11px; font-weight:600; color:var(--dim); text-transform:uppercase; letter-spacing:.7px; margin-bottom:12px; }
+.chart-wrap { position:relative; height:180px; display:flex; align-items:center; justify-content:center; }
+.chart-center-label { position:absolute; text-align:center; pointer-events:none; }
+.chart-center-label .big { font-size:22px; font-weight:700; color:var(--text); }
+.chart-center-label .small { font-size:11px; color:var(--muted); margin-top:2px; }
+
 /* ── Loading / error ── */
 #loading { display:flex; align-items:center; justify-content:center; height:100vh; flex:1; flex-direction:column; gap:12px; color:var(--muted); }
 .spinner { width:28px; height:28px; border:3px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin .7s linear infinite; }
@@ -317,6 +326,7 @@ details .det-body { font-size:12px; color:var(--muted); line-height:1.6; padding
 .relay-dot.ok  { background: var(--green); }
 .relay-dot.err { background: var(--red); }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
 
@@ -380,7 +390,37 @@ details .det-body { font-size:12px; color:var(--muted); line-height:1.6; padding
       <p id="ov-subtitle"></p>
     </div>
     <div class="stat-grid" id="ov-stats"></div>
-    <div class="card">
+    <div class="charts-grid">
+      <div class="chart-card">
+        <div class="chart-title">Features</div>
+        <div class="chart-wrap">
+          <canvas id="chart-features"></canvas>
+          <div class="chart-center-label" id="chart-features-label"></div>
+        </div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Tasks</div>
+        <div class="chart-wrap">
+          <canvas id="chart-tasks"></canvas>
+          <div class="chart-center-label" id="chart-tasks-label"></div>
+        </div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Bugs by Severity</div>
+        <div class="chart-wrap">
+          <canvas id="chart-bugs"></canvas>
+          <div class="chart-center-label" id="chart-bugs-label"></div>
+        </div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Tests</div>
+        <div class="chart-wrap">
+          <canvas id="chart-tests"></canvas>
+          <div class="chart-center-label" id="chart-tests-label"></div>
+        </div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:14px">
       <div class="stitle">Progress</div>
       <div id="ov-progress"></div>
     </div>
@@ -706,6 +746,7 @@ function renderAll() {
   document.getElementById('cnt-tests').textContent = tests.length;
 
   renderOverview(proj, features, tasks, bugs, tests);
+  renderCharts(features, tasks, bugs, tests);
   renderContext();
   renderTechSummary();
   renderFeatures(features, tests, tasks);
@@ -772,6 +813,94 @@ function renderOverview(proj, features, tasks, bugs, tests) {
     </div>`;
     document.getElementById('ov-bugs-section').innerHTML = html;
   }
+}
+
+// ── Charts ─────────────────────────────────────────────────────────
+const _charts = {};
+const C = {
+  green: '#3fb950', red: '#f85149', yellow: '#d29922',
+  blue: '#58a6ff', purple: '#bc8cff', gray: '#484f58', orange: '#e3b341'
+};
+
+function donut(id, labels, data, colors, centerBig, centerSmall) {
+  const canvas = document.getElementById('chart-' + id);
+  if (!canvas) return;
+  const lbl = document.getElementById('chart-' + id + '-label');
+  if (lbl) lbl.innerHTML = `<div class="big">${centerBig}</div><div class="small">${centerSmall}</div>`;
+
+  const total = data.reduce((a, b) => a + b, 0);
+  const nonZero = data.map((v, i) => ({ v, l: labels[i], c: colors[i] })).filter(x => x.v > 0);
+  const empty = total === 0;
+
+  if (_charts[id]) { _charts[id].destroy(); delete _charts[id]; }
+
+  _charts[id] = new Chart(canvas, {
+    type: 'doughnut',
+    data: {
+      labels: empty ? ['No data'] : nonZero.map(x => x.l),
+      datasets: [{ data: empty ? [1] : nonZero.map(x => x.v), backgroundColor: empty ? [C.gray] : nonZero.map(x => x.c), borderWidth: 0, hoverOffset: 4 }]
+    },
+    options: {
+      cutout: '68%', responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { enabled: !empty, callbacks: { label: ctx => ` ${ctx.label}: ${ctx.raw}` } }
+      }
+    }
+  });
+}
+
+function renderCharts(features, tasks, bugs, tests) {
+  // Features donut
+  const fDone   = features.filter(f => ['committed','done','released'].includes((f.status||'').toLowerCase())).length;
+  const fPend   = features.filter(f => (f.status||'').toLowerCase() === 'pending').length;
+  const fProg   = features.filter(f => (f.status||'').toLowerCase() === 'in_progress').length;
+  const fOther  = features.length - fDone - fPend - fProg;
+  donut('features',
+    ['Done', 'Pending', 'In Progress', 'Other'],
+    [fDone, fPend, fProg, fOther],
+    [C.green, C.gray, C.blue, C.purple],
+    features.length ? `${Math.round(fDone/features.length*100)}%` : '—',
+    'complete'
+  );
+
+  // Tasks donut
+  const tDone  = tasks.filter(t => ['committed','done','coded'].includes((t.status||'').toLowerCase())).length;
+  const tPend  = tasks.filter(t => (t.status||'').toLowerCase() === 'pending').length;
+  const tProg  = tasks.filter(t => (t.status||'').toLowerCase() === 'in_progress').length;
+  const tOther = tasks.length - tDone - tPend - tProg;
+  donut('tasks',
+    ['Done', 'Pending', 'In Progress', 'Other'],
+    [tDone, tPend, tProg, tOther],
+    [C.green, C.gray, C.blue, C.purple],
+    tasks.length ? `${Math.round(tDone/tasks.length*100)}%` : '—',
+    'done'
+  );
+
+  // Bugs by severity donut
+  const bHigh  = bugs.filter(b => (b.severity||'').toLowerCase() === 'high').length;
+  const bMed   = bugs.filter(b => (b.severity||'').toLowerCase() === 'medium').length;
+  const bLow   = bugs.filter(b => (b.severity||'').toLowerCase() === 'low').length;
+  const bFixed = bugs.filter(b => (b.status||'').toLowerCase() === 'fixed').length;
+  donut('bugs',
+    ['High', 'Medium', 'Low'],
+    [bHigh, bMed, bLow],
+    [C.red, C.yellow, C.green],
+    bugs.length ? `${bFixed}/${bugs.length}` : '0',
+    'fixed'
+  );
+
+  // Tests donut
+  const tPass = tests.filter(t => (t.status||'').toLowerCase() === 'passed').length;
+  const tFail = tests.filter(t => (t.status||'').toLowerCase() === 'failed').length;
+  const tRest = tests.length - tPass - tFail;
+  donut('tests',
+    ['Passed', 'Failed', 'Pending'],
+    [tPass, tFail, tRest],
+    [C.green, C.red, C.gray],
+    tests.length ? `${tPass}/${tests.length}` : '—',
+    'passed'
+  );
 }
 
 function arch_count(s, path) {
