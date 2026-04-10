@@ -92,47 +92,47 @@
 <div class="header">
   <span class="header-title">Agents</span>
   <span class="sep">|</span>
-  <button class="vbtn active" id="vbtn-grid"       onclick="setView('grid')">Grid</button>
-  <button class="vbtn"        id="vbtn-researcher" onclick="setView('researcher')">Researcher</button>
-  <button class="vbtn"        id="vbtn-design"     onclick="setView('design')">Design</button>
-  <button class="vbtn"        id="vbtn-techlead"   onclick="setView('techlead')">TechLead</button>
-  <button class="vbtn"        id="vbtn-dev"        onclick="setView('dev')">Dev</button>
-  <button class="vbtn"        id="vbtn-qc"         onclick="setView('qc')">QC</button>
+  <button class="vbtn active" id="vbtn-grid"          onclick="setView('grid')">Grid</button>
+  <button class="vbtn"        id="vbtn-orchestrator" onclick="setView('orchestrator')">Orchestrator</button>
+  <button class="vbtn"        id="vbtn-backend"      onclick="setView('backend')">Backend</button>
+  <button class="vbtn"        id="vbtn-frontend"     onclick="setView('frontend')">Frontend</button>
+  <button class="vbtn"        id="vbtn-tester"       onclick="setView('tester')">Tester</button>
+  <button class="vbtn"        id="vbtn-reviewer"     onclick="setView('reviewer')">Reviewer</button>
   <span style="margin-left:auto;font-size:10px;color:#484f58">relay</span>
   <span class="rdot" id="rdot" title="Chat relay :7690"></span>
 </div>
 
 <div id="grid">
-  <div class="pane" id="pane-researcher">
-    <div class="pane-lbl">Researcher</div>
+  <div class="pane" id="pane-orchestrator">
+    <div class="pane-lbl">Orchestrator</div>
     <iframe src="http://localhost:7681" loading="lazy"></iframe>
   </div>
-  <div class="pane" id="pane-design">
-    <div class="pane-lbl">Design</div>
+  <div class="pane" id="pane-backend">
+    <div class="pane-lbl">Backend</div>
     <iframe src="http://localhost:7682" loading="lazy"></iframe>
   </div>
-  <div class="pane" id="pane-techlead">
-    <div class="pane-lbl">TechLead</div>
+  <div class="pane" id="pane-frontend">
+    <div class="pane-lbl">Frontend</div>
     <iframe src="http://localhost:7683" loading="lazy"></iframe>
   </div>
-  <div class="pane" id="pane-dev">
-    <div class="pane-lbl">Dev</div>
+  <div class="pane" id="pane-tester">
+    <div class="pane-lbl">Tester</div>
     <iframe src="http://localhost:7684" loading="lazy"></iframe>
   </div>
-  <div class="pane" id="pane-qc">
-    <div class="pane-lbl">QC</div>
+  <div class="pane" id="pane-reviewer">
+    <div class="pane-lbl">Reviewer</div>
     <iframe src="http://localhost:7685" loading="lazy"></iframe>
   </div>
 </div>
 
 <div class="chat-bar">
   <div class="tag-btns">
-    <button class="tbtn all active" id="tag-all"        onclick="selectTag('all')">All</button>
-    <button class="tbtn"            id="tag-researcher" onclick="selectTag('researcher')">Researcher</button>
-    <button class="tbtn"            id="tag-design"     onclick="selectTag('design')">Design</button>
-    <button class="tbtn"            id="tag-techlead"   onclick="selectTag('techlead')">TechLead</button>
-    <button class="tbtn"            id="tag-dev"        onclick="selectTag('dev')">Dev</button>
-    <button class="tbtn"            id="tag-qc"         onclick="selectTag('qc')">QC</button>
+    <button class="tbtn all active" id="tag-all"           onclick="selectTag('all')">All</button>
+    <button class="tbtn"            id="tag-orchestrator" onclick="selectTag('orchestrator')">Orchestrator</button>
+    <button class="tbtn"            id="tag-backend"      onclick="selectTag('backend')">Backend</button>
+    <button class="tbtn"            id="tag-frontend"     onclick="selectTag('frontend')">Frontend</button>
+    <button class="tbtn"            id="tag-tester"       onclick="selectTag('tester')">Tester</button>
+    <button class="tbtn"            id="tag-reviewer"     onclick="selectTag('reviewer')">Reviewer</button>
   </div>
   <input  class="msg-input" id="msg-input"
           placeholder="Type message — Enter to send" />
@@ -141,7 +141,7 @@
 
 <script>
 const RELAY = 'http://localhost:7690/send';
-const ALL_AGENTS = ['researcher','design','techlead','dev','qc'];
+const ALL_AGENTS = ['orchestrator','backend','frontend','tester','reviewer'];
 let activeTag = 'all';
 
 function setView(v) {

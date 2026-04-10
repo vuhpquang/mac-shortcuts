@@ -1,39 +1,45 @@
 # Software Team — Agent Rules
 
+## Agent Roles
+
+| Agent | Responsibility | Git? |
+|-------|---------------|------|
+| orchestrator | Decompose tasks, assign roles, track progress | No |
+| backend | APIs, DB, server logic | No |
+| frontend | UI components, styling, client state | No |
+| tester | Write and run tests | No |
+| reviewer | Code review, quality gates, commits | YES — only agent |
+
 ## Blackboard
 
-- Each project has its own isolated blackboard at: ./blackboard/{PROJECT_NAME}/
-- State file: ./blackboard/{PROJECT_NAME}/state.json
-- Context file: ./blackboard/{PROJECT_NAME}/context.md
-- Always read before starting, write outputs when done
-- Only write to your designated sections
+- Shared task state: `.agents/blackboard.md`
+- Long-term memory: `.agents/memory.md`
+- Personas: `.agents/personas/{role}.md`
+- Skills: `.agents/skills/{role}/SKILL.md`
+- Decision log: `.logs/decisions.md`
+- Always read blackboard before starting; update your task status when done
+- Write only to your assigned tasks
 
 ## Human escalation
 
 - If blocked or ambiguous, run:
-  bash ./scripts/ask_human.sh "your question" {PROJECT_NAME}
-- PROJECT_NAME is also available as an env var when launched via run.sh
-- This pauses and waits for input
+  `bash ./scripts/ask_human.sh "your question" {PROJECT_NAME}`
+- PROJECT_NAME is available as an env var when launched via run.sh
 
 ## Git rules
 
-- ALL git commands run by Tech Lead only
-- Workers write files, never run git
-- One branch only: develop
-- Software repo is a git submodule at ./projects/{name}/
+- ALL git commands run by reviewer only
+- backend/frontend/tester write files, never run git
+- Commit format: `feat({task-id}): {task-title}`
+- Branch: develop; merge to main via reviewer after QA passes
 
-## Commit format
+## Startup sequence (any agent)
 
-feat({feature_id}): {feature_title}
-
-## Blackboard read rules (read ONLY your section)
-
-- PO: read project only
-- PM: read project, features
-- Design: read features, tasks
-- Tech Lead: read ALL
-- Worker: read tasks[assigned], architecture, design[feature]
-- QC: read features, code
+1. Read `.agents/blackboard.md` — find your pending tasks
+2. Read `.agents/personas/{your-role}.md` — load your identity
+3. Read `.agents/skills/{your-role}/SKILL.md` — load domain knowledge
+4. Read `.agents/memory.md` — load project conventions
+5. Execute tasks; update blackboard status as you go
 
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
