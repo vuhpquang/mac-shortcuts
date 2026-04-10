@@ -2,22 +2,251 @@
   "project": {
     "id": "dayflow",
     "name": "DayFlow",
-    "goal": "Multiplatform timeline calendar app — vertical day/week view on Android, Web, and macOS with Google Calendar sync.",
+    "goal": "Multiplatform timeline calendar app — see your full day as a vertical time axis with events at their exact times. Like TickTick's Calendar view but standalone on Android, Web, and macOS.",
     "status": "planned"
   },
   "features": [
-    { "id": "F01", "title": "Vertical timeline day view (hour slots, current time indicator)", "priority": "high", "status": "pending" },
-    { "id": "F02", "title": "Week view with day columns", "priority": "high", "status": "pending" },
-    { "id": "F03", "title": "Google Calendar OAuth sync (read + write)", "priority": "high", "status": "pending" },
-    { "id": "F04", "title": "Create / edit / delete events", "priority": "high", "status": "pending" },
-    { "id": "F05", "title": "Drag-and-drop event rescheduling", "priority": "medium", "status": "pending" },
-    { "id": "F06", "title": "Multiple calendar overlays with color coding", "priority": "medium", "status": "pending" },
-    { "id": "F07", "title": "Local cache + offline mode", "priority": "medium", "status": "pending" },
-    { "id": "F08", "title": "macOS menu bar integration", "priority": "medium", "status": "pending" },
-    { "id": "F09", "title": "Android home screen widget", "priority": "low", "status": "pending" },
-    { "id": "F10", "title": "Web PWA manifest + install prompt", "priority": "low", "status": "pending" }
+    {
+      "id": "F01",
+      "title": "Vertical Timeline Day View",
+      "description": "A precise vertical hour-slot view showing events at exact clock positions, with a live current-time indicator scrolled into view on launch. Overlapping events must tile side-by-side (not hidden). Time slots should be 15-min granular, with configurable working-hours zoom. This is the core differentiator — users leave Google Calendar because its day view is clunky on mobile and doesn't show event depth clearly.",
+      "priority": "high",
+      "status": "pending"
+    },
+    {
+      "id": "F02",
+      "title": "Week View with Day Columns",
+      "description": "A 7-column (or 5-day work-week) grid where each column is a mini timeline. Users need to see the whole week to spot gaps and overloaded days. Must support horizontal swipe to advance weeks. Event blocks must be tappable to view/edit. Critical for context switching between planning and execution mode.",
+      "priority": "high",
+      "status": "pending"
+    },
+    {
+      "id": "F03",
+      "title": "Google Calendar OAuth Sync (Read + Write)",
+      "description": "Full two-way sync with Google Calendar using OAuth 2.0. Covers: initial full sync, incremental sync via syncToken (avoids polling), push notification webhooks for real-time server-push updates, 410 GONE token expiry with graceful full-resync fallback. Scope: calendar.events (read/write) and calendar.readonly for read-only calendars. Multi-account support is not MVP but architecture must not block it.",
+      "priority": "high",
+      "status": "pending"
+    },
+    {
+      "id": "F04",
+      "title": "Event Create / Edit / Delete",
+      "description": "Full event CRUD with: title, start/end time (with date picker + time picker), location, description, calendar selection, color, repeat rules (RRULE), reminders/alarms, attendees (display only for MVP). Natural language quick-add (e.g., 'Lunch tomorrow at noon') is a key switch driver cited by Fantastical users — include a basic NLP parser for time expressions. All writes must optimistically update local cache then sync.",
+      "priority": "high",
+      "status": "pending"
+    },
+    {
+      "id": "F05",
+      "title": "Drag-and-Drop Event Rescheduling",
+      "description": "Long-press an event block on the timeline to enter drag mode; drag vertically to change time, drag horizontally (week view) to change day. Show a ghost/shadow of the original slot while dragging. Snap to 15-min intervals. On release, optimistically update local and fire a background API patch. This is a top-requested feature users miss from desktop calendar apps when using mobile. Resize handle at the bottom of event block to extend duration.",
+      "priority": "high",
+      "status": "pending"
+    },
+    {
+      "id": "F06",
+      "title": "Multiple Calendar Overlays with Color Coding",
+      "description": "Display events from multiple Google Calendars simultaneously. Each calendar gets a distinct color (from Google Calendar metadata or user-overridden). Calendar list panel allows toggling visibility per calendar. Color dots/stripes on event blocks identify source calendar. Notion Calendar and Fantastical both do this well — it's table stakes for any power user managing work + personal + shared calendars.",
+      "priority": "medium",
+      "status": "pending"
+    },
+    {
+      "id": "F07",
+      "title": "Local SQLite Cache and Offline Mode",
+      "description": "All synced events stored in local SQLite (via drift). App must be fully usable offline — create/edit events in a pending queue, sync when back online. Cache must handle conflict resolution (server wins for edits by others, local wins for user edits made offline). Incremental sync via syncToken means subsequent loads are fast. Offline indicator in UI when no connectivity. This is critical for Android users on spotty networks and for macOS menu bar glanceability.",
+      "priority": "medium",
+      "status": "pending"
+    },
+    {
+      "id": "F08",
+      "title": "macOS Menu Bar Integration",
+      "description": "A persistent menu bar icon showing today's next event and time-until. Clicking opens a compact popover with today's timeline (scrollable, read-only). Option to open full app. Uses flutter_menubar or system_tray package. Launching the full DayFlow window from the menu bar. Key differentiator from web-only competitors — macOS power users (developers, designers) live in the menu bar and want at-a-glance visibility without switching apps.",
+      "priority": "medium",
+      "status": "pending"
+    },
+    {
+      "id": "F09",
+      "title": "Android Home Screen Widget",
+      "description": "A 4x2 or 4x4 Android widget showing today's upcoming events as a mini timeline using Jetpack Glance (implemented via home_widget Flutter package with native Glance code). Data bridge via SharedPreferences exposed by home_widget. Widget updates when app syncs. Tap opens DayFlow to today view. This mirrors TickTick's most-loved Android feature and is a primary acquisition hook for Android-first users.",
+      "priority": "low",
+      "status": "pending"
+    },
+    {
+      "id": "F10",
+      "title": "Web PWA and Responsive Layout",
+      "description": "Flutter Web build with PWA manifest (manifest.json, service worker) so the app can be installed as a standalone web app on desktop or mobile browsers. Responsive layout: narrow screens get day view by default, wide screens get week view with sidebar calendar list. Install-to-home-screen prompt on mobile browsers. This removes the barrier for users who don't want to install a native app but still want glanceability beyond Google Calendar's web UI.",
+      "priority": "low",
+      "status": "pending"
+    }
   ],
-  "tasks": [],
+  "tasks": [
+    {
+      "id": "T01",
+      "feature_id": "F01",
+      "title": "Implement hour-slot timeline scaffold",
+      "description": "Build a CustomScrollView/SliverList-based vertical timeline widget with 96 slots per day (15-min each). Each slot is a fixed-height row with a time label on the left. Render a horizontal divider at each hour boundary (thicker). Scroll position persists across hot reloads. Target: smooth 60fps scroll on mid-range Android.",
+      "status": "pending"
+    },
+    {
+      "id": "T02",
+      "feature_id": "F01",
+      "title": "Position and render event blocks on timeline",
+      "description": "Overlay event blocks on the timeline using Stack + Positioned. Calculate top offset and height from event start/end times relative to the day's start (00:00). Handle overlapping events by computing column layout (interval graph coloring) so concurrent events tile horizontally. Minimum block height: 20dp (never smaller than a tap target). Support multi-day events as all-day banners at top of view.",
+      "status": "pending"
+    },
+    {
+      "id": "T03",
+      "feature_id": "F01",
+      "title": "Current-time indicator and auto-scroll",
+      "description": "Draw a red horizontal line + dot at the current time position. Update every 60 seconds via a Timer. On app launch and on date change, auto-scroll the viewport so the current time is 20% from the top (not centered, to show what's coming). Animate scroll with Curves.easeOut over 400ms.",
+      "status": "pending"
+    },
+    {
+      "id": "T04",
+      "feature_id": "F01",
+      "title": "Date navigation header and swipe gestures",
+      "description": "Sticky date header at top showing current day (e.g., 'Thu, Apr 10'). Left/right swipe on the timeline advances/retreats one day. Horizontal PageView wrapper with lazy day loading. Tapping header opens a compact month mini-picker (date picker popover).",
+      "status": "pending"
+    },
+    {
+      "id": "T05",
+      "feature_id": "F02",
+      "title": "Week grid layout with per-column day timelines",
+      "description": "Build a horizontal scroll + vertical scroll synchronized grid: 7 day columns, each sharing the same hour-slot rows. Implement synchronized vertical scrolling across columns (single ScrollController driving all columns). Column headers show day-of-week + date number; highlight today. All-day events row spans full width above the timed grid.",
+      "status": "pending"
+    },
+    {
+      "id": "T06",
+      "feature_id": "F02",
+      "title": "Week view event rendering and column interaction",
+      "description": "Render event blocks inside each day column, respecting the same overlap-tiling logic as day view but constrained to column width. Tap an event block to open event detail sheet. Tap an empty time slot to open quick-create form pre-filled with that day and time. Support 5-day work-week mode toggled in settings.",
+      "status": "pending"
+    },
+    {
+      "id": "T07",
+      "feature_id": "F03",
+      "title": "OAuth 2.0 login and token management",
+      "description": "Implement Google Sign-In using google_sign_in Flutter package. Request scopes: https://www.googleapis.com/auth/calendar.events and https://www.googleapis.com/auth/calendar.readonly. Store access + refresh tokens securely via flutter_secure_storage. Implement token refresh on 401 responses. Handle revoked access gracefully (prompt re-auth). Support sign-out and account switch.",
+      "status": "pending"
+    },
+    {
+      "id": "T08",
+      "feature_id": "F03",
+      "title": "Full sync on first launch and incremental sync via syncToken",
+      "description": "On first launch (or after 410 GONE): fetch all events from all calendars using Events.list with timeMin=now-30days and timeMax=now+90days. Store nextSyncToken per calendar. On subsequent syncs: call Events.list with syncToken to get only changed/deleted events. Upsert changed events; remove deleted ones from local DB. Schedule background sync every 15 min and on app foreground.",
+      "status": "pending"
+    },
+    {
+      "id": "T09",
+      "feature_id": "F03",
+      "title": "Google Calendar push notifications (webhook channel)",
+      "description": "Register a push notification channel via Events.watch for each calendar (requires a public HTTPS endpoint — deploy a minimal relay server or use Firebase Cloud Messaging bridge). On receiving a push, trigger an incremental sync for that calendar. Handle channel expiry (re-register before TTL). Fall back to polling if webhook channel fails. This eliminates the need for frequent polling and reduces battery/data usage.",
+      "status": "pending"
+    },
+    {
+      "id": "T10",
+      "feature_id": "F04",
+      "title": "Event detail sheet and edit form",
+      "description": "Bottom sheet (modal) with event details: title, time range, calendar badge, location, description, recurrence label, attendees list (read-only). Edit button opens full-screen form with: text fields, date/time pickers, calendar dropdown, color picker, repeat picker (daily/weekly/monthly/custom RRULE), reminder picker. Save triggers optimistic local update + API patch. Cancel discards changes.",
+      "status": "pending"
+    },
+    {
+      "id": "T11",
+      "feature_id": "F04",
+      "title": "Quick-add with basic natural language parsing",
+      "description": "FAB or '+' button opens a text input bar at the bottom of the screen. Parse input for time expressions using a lightweight Dart NLP library or regex rules: 'tomorrow at 3pm', 'next Monday 9-10am', 'Friday lunch 12:30'. Extract: title (non-time text), start datetime, optional end datetime. Show parsed preview as chips below the input. Fallback to structured form if parsing confidence is low. Inspired by Fantastical's key differentiator.",
+      "status": "pending"
+    },
+    {
+      "id": "T12",
+      "feature_id": "F04",
+      "title": "Delete event with recurrence handling",
+      "description": "Delete action on event detail sheet with confirmation dialog. For recurring events, offer three options: 'This event', 'This and following events', 'All events' — maps to Google Calendar API's sendUpdates and the event's recurringEventId handling. Optimistic delete from local cache, then API call. Undo via snackbar within 5 seconds (cancel the API call or restore).",
+      "status": "pending"
+    },
+    {
+      "id": "T13",
+      "feature_id": "F05",
+      "title": "Long-press drag gesture for timeline events",
+      "description": "Wrap event blocks in a LongPressDraggable widget. On long-press (300ms), scale up slightly and add elevation shadow to signal drag mode. Compute drag delta in time units (dy / pixelsPerMinute). Show a semi-transparent ghost at original position. Snap dragged position to 15-min grid. On drop, compute new start/end datetime and call the update handler.",
+      "status": "pending"
+    },
+    {
+      "id": "T14",
+      "feature_id": "F05",
+      "title": "Optimistic update and API sync on drop",
+      "description": "On drag drop: immediately update the event in local SQLite and re-render the timeline (optimistic). Fire a background Events.patch API call with the new start/end. On API error: revert local state and show an error snackbar. For recurring event drags, ask 'Move this event only?' before patching. Add a resize handle widget at the bottom of each event block to extend duration via vertical drag.",
+      "status": "pending"
+    },
+    {
+      "id": "T15",
+      "feature_id": "F06",
+      "title": "Fetch and display calendar list with color metadata",
+      "description": "On sync, call CalendarList.list to fetch all calendars. Store calendar id, summary, backgroundColor, foregroundColor, accessRole in local DB. Display a calendar sidebar/drawer listing all calendars with color swatches and toggle checkboxes. Persist visibility state locally. Filter event rendering on the timeline by visible calendar set.",
+      "status": "pending"
+    },
+    {
+      "id": "T16",
+      "feature_id": "F06",
+      "title": "Color-coded event blocks and calendar badge",
+      "description": "Event blocks use their calendar's backgroundColor (or event-level color override from colorId field). Ensure text/icon legibility: compute contrasting foreground color from background luminance. In week view where events are narrow, show a colored left-border stripe instead of full fill. Calendar icon/dot visible on event detail sheet.",
+      "status": "pending"
+    },
+    {
+      "id": "T17",
+      "feature_id": "F07",
+      "title": "SQLite schema and drift ORM setup",
+      "description": "Define drift tables: events (id, calendarId, title, startTime, endTime, isAllDay, colorId, status, syncStatus, updatedAt, rawJson), calendars (id, name, color, isVisible), syncState (calendarId, syncToken, lastSyncAt). Run migrations with drift's schema versioning. Add indexes on startTime and calendarId for fast range queries (needed for timeline rendering).",
+      "status": "pending"
+    },
+    {
+      "id": "T18",
+      "feature_id": "F07",
+      "title": "Offline write queue and conflict resolution",
+      "description": "When creating/editing/deleting events offline: write to local DB with syncStatus='pending'. On network reconnect, flush the pending queue in order. Conflict resolution policy: if server version has a newer updatedAt than local, surface a conflict dialog. For auto-resolution: server wins on edits from other devices, local wins on edits made while offline. Mark sync errors per event with an error badge in the UI.",
+      "status": "pending"
+    },
+    {
+      "id": "T19",
+      "feature_id": "F08",
+      "title": "macOS menu bar icon and next-event display",
+      "description": "Use system_tray Flutter package to create a persistent menu bar icon (calendar emoji or custom NSImage). Menu item shows next upcoming event: 'Team Standup — in 12 min'. Update every minute via Timer. Second menu item: 'Open DayFlow'. Third: 'Quit'. Icon badge or color change when an event is starting in <5 min.",
+      "status": "pending"
+    },
+    {
+      "id": "T20",
+      "feature_id": "F08",
+      "title": "macOS menu bar popover with today's timeline",
+      "description": "Clicking the menu bar icon opens a compact NSPanel/popover (300x500dp) with today's event list in a simplified timeline. Scroll to current time on open. Each event row shows time, title, calendar color dot. Tapping an event opens the full DayFlow window at that event. Implement using Flutter's Platform Channel to display a Flutter surface inside an NSPanel, or use a separate Flutter window sized as a popover.",
+      "status": "pending"
+    },
+    {
+      "id": "T21",
+      "feature_id": "F09",
+      "title": "Android widget layout with Jetpack Glance",
+      "description": "Write a GlanceAppWidget in Kotlin using Jetpack Glance that reads event data from SharedPreferences (written by the Flutter app via home_widget package). Layout: date header row, then up to 5 upcoming event rows (time + title + color dot). Register widget in AndroidManifest.xml with a 4x2 minimum size and resizable to 4x4. Add a widget preview image for the Android widget picker.",
+      "status": "pending"
+    },
+    {
+      "id": "T22",
+      "feature_id": "F09",
+      "title": "Widget data bridge and update triggers",
+      "description": "In the Flutter app, after each sync, serialize today's upcoming events (next 8 events, max) to JSON and write to SharedPreferences via home_widget's saveWidgetData. Call HomeWidget.updateWidget() to trigger a Glance recomposition. Handle the case where the widget is tapped: use HomeWidget.registerInteractivityCallback to launch the Flutter app and navigate to today's day view. Test update latency target: <2s after sync completes.",
+      "status": "pending"
+    },
+    {
+      "id": "T23",
+      "feature_id": "F10",
+      "title": "Flutter Web PWA manifest and service worker",
+      "description": "Configure web/manifest.json with app name, short_name, icons (192px, 512px), display: standalone, theme_color, background_color, start_url. Verify Flutter's default service worker (flutter_service_worker.js) caches app shell for offline launch. Add an install prompt banner using a beforeinstallprompt JavaScript interop listener injected via flutter_inappwebview or a dart:js call. Test on Chrome and Safari mobile.",
+      "status": "pending"
+    },
+    {
+      "id": "T24",
+      "feature_id": "F10",
+      "title": "Responsive layout breakpoints for web",
+      "description": "Implement a LayoutBuilder-based adaptive shell: <600dp width → mobile layout (day view default, bottom nav bar); 600–1024dp → tablet layout (week view default, side calendar list collapsed); >1024dp → desktop layout (week view, persistent sidebar with calendar list and mini month picker). Use flutter_adaptive_scaffold or a custom AdaptiveLayout widget. Ensure the timeline scales its slot heights appropriately for pointer (mouse) vs. touch input.",
+      "status": "pending"
+    }
+  ],
   "architecture": {},
   "design": [],
   "code": [],

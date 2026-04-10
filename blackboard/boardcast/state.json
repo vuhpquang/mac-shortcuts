@@ -6,17 +6,261 @@
     "status": "planned"
   },
   "features": [
-    { "id": "F01", "title": "REST API for blackboard read/write", "priority": "high", "status": "pending" },
-    { "id": "F02", "title": "Real-time push via SSE/WebSocket", "priority": "high", "status": "pending" },
-    { "id": "F03", "title": "Token-based auth", "priority": "high", "status": "pending" },
-    { "id": "F04", "title": "Remote chat relay (POST /send → agent tmux)", "priority": "high", "status": "pending" },
-    { "id": "F05", "title": "Live blackboard dashboard UI", "priority": "high", "status": "pending" },
-    { "id": "F06", "title": "Project switcher", "priority": "medium", "status": "pending" },
-    { "id": "F07", "title": "Task editor (create / update / unblock)", "priority": "medium", "status": "pending" },
-    { "id": "F08", "title": "Decisions log viewer", "priority": "low", "status": "pending" },
-    { "id": "F09", "title": "Docker + deploy pipeline", "priority": "high", "status": "pending" }
+    {
+      "id": "F01",
+      "title": "REST API for blackboard read/write",
+      "description": "Express/FastAPI backend that reads and writes blackboard JSON/MD files on disk. Exposes endpoints for GET /state, PATCH /state, GET /context, and POST /decisions. Designed for file-based persistence so no database is needed — the filesystem is the source of truth, matching how agents already operate. Pain point solved: remote consumers (browser, mobile) can't directly access local files; the API acts as the bridge.",
+      "priority": "high",
+      "status": "pending"
+    },
+    {
+      "id": "F02",
+      "title": "Real-time blackboard sync via SSE",
+      "description": "Server-Sent Events endpoint (GET /events) that watches blackboard files with chokidar/fs.watch and pushes diff patches to connected clients whenever state.json or context.md changes. SSE is preferred over WebSocket for this read-heavy use case: it works through proxies, requires no handshake upgrade, and is trivially reconnectable. Pain point solved: polling-based dashboards (like Retool) feel stale and laggy; SSE delivers sub-second updates without hammering the server.",
+      "priority": "high",
+      "status": "pending"
+    },
+    {
+      "id": "F03",
+      "title": "Token-based authentication",
+      "description": "Static bearer token auth (env-var configured) protecting all API routes and the SSE stream. Tokens are passed as Authorization: Bearer <token> or a ?token= query param for EventSource clients (which can't set headers). Optionally support multiple named tokens (dev, mobile, ci) so access can be revoked per device. Pain point solved: dashboards like Notion/Linear require OAuth flows that are overkill for a solo-dev tool; a pre-shared token is fast to configure and sufficient for personal use.",
+      "priority": "high",
+      "status": "pending"
+    },
+    {
+      "id": "F04",
+      "title": "Remote message relay to agents",
+      "description": "POST /send endpoint that accepts { project, agent, message } and writes the message to a relay file or pipes it into the correct tmux pane via tmux send-keys. This closes the control loop: you can unblock a stuck agent, answer its ask_human prompt, or inject a new instruction from your phone. Pain point solved: Jira/Linear have no way to send a message to a running process; this feature is unique to the agent-team use case and is the core 'remote control' capability.",
+      "priority": "high",
+      "status": "pending"
+    },
+    {
+      "id": "F05",
+      "title": "Live blackboard dashboard UI",
+      "description": "React + Vite SPA that displays the current blackboard state in a readable, structured layout: project status, features kanban, tasks list with status badges, decisions log, and a live activity feed driven by the SSE stream. Optimistic UI updates apply SSE patches locally before the next full-state refresh. Pain point solved: raw JSON files are unreadable at a glance; Linear-style boards are useful but require a database and multi-user model that adds unnecessary complexity for this use case.",
+      "priority": "high",
+      "status": "pending"
+    },
+    {
+      "id": "F06",
+      "title": "Multi-project switcher",
+      "description": "Dropdown or sidebar that lists all projects found under ./blackboard/ and switches the dashboard context to the selected project without a page reload. The backend scans ./blackboard/ for subdirectories containing state.json and returns them via GET /projects. Pain point solved: Notion workspaces require manual navigation and don't show live agent state; this switcher is purpose-built for monitoring multiple concurrent agent workstreams from one view.",
+      "priority": "medium",
+      "status": "pending"
+    },
+    {
+      "id": "F07",
+      "title": "Inline task editor",
+      "description": "Click-to-edit UI on any task or feature card that sends a PATCH /state request to update fields (title, status, description, assignee). Supports status transitions (pending → in_progress → done, blocked → pending) with a single click. Also allows creating new tasks and unblocking stuck tasks by writing to the blockers field. Pain point solved: Retool allows editing data but requires schema config per table; this editor is schema-aware and tied directly to the blackboard format.",
+      "priority": "medium",
+      "status": "pending"
+    },
+    {
+      "id": "F08",
+      "title": "Agent chat panel",
+      "description": "Split-pane view with a conversation thread per agent showing messages sent via ask_human.sh and replies sent via POST /send. Messages are stored in a per-project chat log file (blackboard/{project}/chat.jsonl) and streamed to the UI via SSE. Supports @agent addressing so a single input box can target any agent. Pain point solved: there is currently no persistent record of human-agent exchanges — they are ephemeral tmux sessions. This panel creates a conversation audit trail.",
+      "priority": "medium",
+      "status": "pending"
+    },
+    {
+      "id": "F09",
+      "title": "Decisions and context viewer",
+      "description": "Read-only panel that renders blackboard/{project}/context.md as formatted Markdown and displays the decisions[] array as a chronological log with timestamps, rationale, and linked feature IDs. Useful for reviewing why a project is in its current state without digging through files. Pain point solved: Notion is good at this but requires manually copying agent outputs into pages; this viewer auto-syncs from the files agents already write.",
+      "priority": "low",
+      "status": "pending"
+    },
+    {
+      "id": "F10",
+      "title": "Docker + hosted deployment pipeline",
+      "description": "Dockerfile and docker-compose.yml packaging the backend + frontend (served as static assets by Express) into a single container. CI/CD config (GitHub Actions or Railway auto-deploy) builds and pushes on push to main. Secrets (auth token, blackboard mount path) injected via environment variables. Blackboard directory mounted as a volume so the container reads the live files from the host. Pain point solved: self-hosted dashboards like Grafana require significant infra config; this setup deploys in under 5 minutes on Railway or Fly.io with a single command.",
+      "priority": "high",
+      "status": "pending"
+    }
   ],
-  "tasks": [],
+  "tasks": [
+    {
+      "id": "T01",
+      "feature_id": "F01",
+      "title": "Scaffold Express backend with project structure",
+      "description": "Initialize a Node.js/Express project under ./boardcast/backend/. Set up TypeScript (or plain JS with JSDoc), folder structure (routes/, services/, middleware/), environment config via dotenv, and a basic health-check endpoint GET /health. Include a fileService module that resolves blackboard paths from a BLACKBOARD_ROOT env var.",
+      "status": "pending"
+    },
+    {
+      "id": "T02",
+      "feature_id": "F01",
+      "title": "Implement GET /projects and GET /state/:project endpoints",
+      "description": "GET /projects scans BLACKBOARD_ROOT for subdirectories containing state.json and returns their names. GET /state/:project reads and returns the full state.json for the given project. Include error handling for missing projects (404) and malformed JSON (500 with descriptive message).",
+      "status": "pending"
+    },
+    {
+      "id": "T03",
+      "feature_id": "F01",
+      "title": "Implement PATCH /state/:project endpoint",
+      "description": "Accept a partial state object and deep-merge it into the existing state.json using a safe merge strategy (arrays replaced at the key level, not element level to avoid conflicts). Validate the incoming payload shape before writing. Return the updated state. Log all writes with timestamp for audit.",
+      "status": "pending"
+    },
+    {
+      "id": "T04",
+      "feature_id": "F01",
+      "title": "Implement GET /context/:project endpoint",
+      "description": "Read and return the raw Markdown content of blackboard/{project}/context.md as plain text (Content-Type: text/plain). If the file doesn't exist, return an empty string with 200 so the frontend handles the empty state gracefully.",
+      "status": "pending"
+    },
+    {
+      "id": "T05",
+      "feature_id": "F02",
+      "title": "Set up chokidar file watcher service",
+      "description": "Create a WatcherService that uses chokidar to watch all files under BLACKBOARD_ROOT. On change events, read the updated file, determine the project and file type (state/context/chat), and emit an internal event with { project, type, payload }. Handle debouncing (50ms) to avoid duplicate events on rapid writes.",
+      "status": "pending"
+    },
+    {
+      "id": "T06",
+      "feature_id": "F02",
+      "title": "Implement GET /events SSE endpoint",
+      "description": "Create an SSE endpoint that accepts ?project= filter and ?token= auth param. On connect, send a snapshot event with the current state, then subscribe to WatcherService events for the requested project. Send change events as JSON-encoded SSE data. Handle client disconnect by unsubscribing to prevent memory leaks. Set headers: Cache-Control: no-cache, X-Accel-Buffering: no for proxy compatibility.",
+      "status": "pending"
+    },
+    {
+      "id": "T07",
+      "feature_id": "F02",
+      "title": "Connect React frontend to SSE stream",
+      "description": "Create a useSSE custom hook that opens an EventSource connection to /events with the auth token. Handle 'snapshot' events to initialize state, 'change' events to apply patches, and automatic reconnect with exponential backoff on connection loss. Expose connection status (connected/reconnecting/error) to the UI.",
+      "status": "pending"
+    },
+    {
+      "id": "T08",
+      "feature_id": "F03",
+      "title": "Implement bearer token auth middleware",
+      "description": "Express middleware that checks Authorization: Bearer <token> header or ?token= query param against the TOKEN env var (or a TOKEN_LIST for multi-token support). Returns 401 with a JSON error on failure. Applies to all routes except GET /health. Log auth failures with IP and timestamp.",
+      "status": "pending"
+    },
+    {
+      "id": "T09",
+      "feature_id": "F03",
+      "title": "Frontend token storage and login screen",
+      "description": "Simple login screen that prompts for the bearer token on first visit. Store the token in localStorage. Include it in all fetch requests and EventSource connections. Add a logout button that clears the token and redirects to the login screen. Show a persistent 'session expired' banner on 401 responses.",
+      "status": "pending"
+    },
+    {
+      "id": "T10",
+      "feature_id": "F04",
+      "title": "Implement POST /send endpoint",
+      "description": "Accept { project, agent, message } and write the message to blackboard/{project}/chat.jsonl as a new line: { ts, from: 'human', agent, message }. Optionally execute tmux send-keys to the target agent's pane if TMUX_RELAY=true env var is set. Return { ok: true, ts } on success. Validate inputs strictly — reject empty messages or unknown agents.",
+      "status": "pending"
+    },
+    {
+      "id": "T11",
+      "feature_id": "F04",
+      "title": "Implement tmux relay service",
+      "description": "Create a TmuxService that maps agent names to tmux session:window:pane coordinates (configured via a TMUX_MAP env var or a tmux-map.json file). Expose a sendToAgent(agent, message) method that runs tmux send-keys via child_process.exec. Include a dry-run mode for testing without a live tmux session. Log all relay attempts.",
+      "status": "pending"
+    },
+    {
+      "id": "T12",
+      "feature_id": "F05",
+      "title": "Build project overview and feature kanban",
+      "description": "React component that renders the project header (name, goal, status) and a kanban board of features grouped by status (pending / in_progress / done / blocked). Each feature card shows title, priority badge, and task completion count. Data comes from the useSSE hook state — no separate fetch needed.",
+      "status": "pending"
+    },
+    {
+      "id": "T13",
+      "feature_id": "F05",
+      "title": "Build task list with status badges and filters",
+      "description": "Task list component below the kanban that shows all tasks for the selected feature (or all tasks if no feature is selected). Each row shows task ID, title, status badge (color-coded), and assigned agent. Filters for status and feature_id. Rows are sortable by status and ID.",
+      "status": "pending"
+    },
+    {
+      "id": "T14",
+      "feature_id": "F05",
+      "title": "Build live activity feed",
+      "description": "Sidebar or bottom panel that displays a chronological stream of SSE change events: 'Task T04 moved to done', 'Feature F02 updated', 'Human sent message to Tech Lead'. Each entry shows a relative timestamp (e.g. '2s ago'). Auto-scrolls to the latest entry. Limited to the last 50 events in memory.",
+      "status": "pending"
+    },
+    {
+      "id": "T15",
+      "feature_id": "F06",
+      "title": "Backend GET /projects endpoint and project scan",
+      "description": "Implement the GET /projects endpoint in fileService: scan BLACKBOARD_ROOT for directories that contain a state.json, return array of { id, name, status } by reading the project field from each state.json. Cache the result for 5 seconds to avoid repeated disk reads on fast polling clients.",
+      "status": "pending"
+    },
+    {
+      "id": "T16",
+      "feature_id": "F06",
+      "title": "Frontend project switcher component",
+      "description": "Dropdown or sidebar list in the nav bar that fetches /projects on mount and refreshes every 30 seconds. Clicking a project updates a global selectedProject state context, causing all dashboard components to re-render with the new project's data. Persists the last selected project in localStorage.",
+      "status": "pending"
+    },
+    {
+      "id": "T17",
+      "feature_id": "F07",
+      "title": "Inline task status toggle",
+      "description": "On each task row, add a clickable status badge that cycles through valid transitions (pending → in_progress → done, blocked → pending). Clicking sends a PATCH /state/:project request with the updated task. Optimistically update the local state immediately and revert on API error. Show a spinner on the badge while the request is in flight.",
+      "status": "pending"
+    },
+    {
+      "id": "T18",
+      "feature_id": "F07",
+      "title": "Task detail drawer with full edit form",
+      "description": "Clicking a task row opens a side drawer with a form to edit all task fields: title, description, status, feature_id. Changes are sent via PATCH on blur (not on every keystroke). The drawer also shows a 'Mark blocked' button that appends a blocker reason to a blockers[] field. Include a delete button that removes the task from the array.",
+      "status": "pending"
+    },
+    {
+      "id": "T19",
+      "feature_id": "F07",
+      "title": "New task creation form",
+      "description": "A '+' button at the bottom of the task list opens an inline form to create a new task: title (required), feature_id (dropdown), description (optional). Submits via PATCH /state/:project appending to the tasks array with a generated ID (T{n+1}). Auto-closes and scrolls to the new task on success.",
+      "status": "pending"
+    },
+    {
+      "id": "T20",
+      "feature_id": "F08",
+      "title": "Backend chat log read/write and SSE integration",
+      "description": "Extend fileService to read/append blackboard/{project}/chat.jsonl. Extend WatcherService to watch chat.jsonl files and emit 'chat' SSE events on new lines. Add GET /chat/:project endpoint returning the last 100 messages as a JSON array. POST /send already writes to this file (T10), so no duplicate write logic needed.",
+      "status": "pending"
+    },
+    {
+      "id": "T21",
+      "feature_id": "F08",
+      "title": "Agent chat panel UI",
+      "description": "Chat panel component with a message thread (human messages right-aligned, agent messages left-aligned) and an input box with agent selector dropdown. Threads are segmented by agent name. New messages arrive via SSE 'chat' events. The input sends to POST /send. Show delivery confirmation (checkmark) when the SSE echo arrives back.",
+      "status": "pending"
+    },
+    {
+      "id": "T22",
+      "feature_id": "F09",
+      "title": "Context.md Markdown viewer",
+      "description": "React component that fetches GET /context/:project and renders the Markdown using react-markdown with syntax highlighting (via rehype-highlight). Re-fetches on SSE 'context' change events. Shows a 'last updated' timestamp. Falls back to a placeholder message if context.md is empty or missing.",
+      "status": "pending"
+    },
+    {
+      "id": "T23",
+      "feature_id": "F09",
+      "title": "Decisions log component",
+      "description": "Read the decisions[] array from the SSE state and render it as a chronological timeline list. Each entry shows: timestamp, decision summary, rationale, and linked feature/task ID as a clickable badge that highlights the corresponding card in the kanban. Sort newest-first. Empty state shows 'No decisions logged yet.'",
+      "status": "pending"
+    },
+    {
+      "id": "T24",
+      "feature_id": "F10",
+      "title": "Dockerfile and docker-compose for single-container deploy",
+      "description": "Multi-stage Dockerfile: stage 1 builds the React app (vite build), stage 2 copies dist/ into the Express backend's public/ folder and runs the server. docker-compose.yml mounts the host blackboard directory as a volume and passes TOKEN, BLACKBOARD_ROOT, and TMUX_RELAY env vars. Include a .dockerignore to exclude node_modules and .git.",
+      "status": "pending"
+    },
+    {
+      "id": "T25",
+      "feature_id": "F10",
+      "title": "Railway / Fly.io deploy configuration",
+      "description": "Add railway.json (or fly.toml) with service name, port, and health check path (/health). Document the one-time setup steps: link repo, set TOKEN secret, mount a persistent volume for the blackboard directory. Add a deploy script (scripts/deploy.sh) that builds, tags, and pushes the Docker image. Target deploy time under 5 minutes from a fresh account.",
+      "status": "pending"
+    },
+    {
+      "id": "T26",
+      "feature_id": "F10",
+      "title": "GitHub Actions CI pipeline",
+      "description": "Workflow file (.github/workflows/deploy.yml) that triggers on push to main: runs lint + type-check, builds the Docker image, and pushes to the configured registry (GHCR or Docker Hub). Secrets are injected from GitHub Actions secrets. Optionally trigger a Railway/Fly.io redeploy via their deploy hook URL stored as a secret.",
+      "status": "pending"
+    }
+  ],
   "architecture": {},
   "design": [],
   "code": [],

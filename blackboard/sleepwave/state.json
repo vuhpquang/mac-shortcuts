@@ -6,17 +6,233 @@
     "status": "planned"
   },
   "features": [
-    { "id": "F01", "title": "Foreground sensor service (accelerometer sampling)", "priority": "high", "status": "pending" },
-    { "id": "F02", "title": "Sleep phase classification algorithm", "priority": "high", "status": "pending" },
-    { "id": "F03", "title": "Smart alarm scheduling (AlarmManager + WakeLock)", "priority": "high", "status": "pending" },
-    { "id": "F04", "title": "Gradual volume ramp on wake", "priority": "high", "status": "pending" },
-    { "id": "F05", "title": "Dismiss screen with captcha/puzzle", "priority": "medium", "status": "pending" },
-    { "id": "F06", "title": "Sleep session history (Room DB)", "priority": "medium", "status": "pending" },
-    { "id": "F07", "title": "Sleep history chart UI", "priority": "medium", "status": "pending" },
-    { "id": "F08", "title": "Battery optimization exemption flow", "priority": "high", "status": "pending" },
-    { "id": "F09", "title": "Snooze with configurable limit", "priority": "low", "status": "pending" }
+    {
+      "id": "F01",
+      "title": "Foreground Sensor Service (Accelerometer Sampling)",
+      "description": "A persistent ForegroundService that holds a WakeLock and samples the accelerometer at ~4 Hz (using SensorManager with maxReportLatencyUs batching to save battery). The service posts an ongoing notification as required by Android. Handles sensor registration/deregistration on sleep start/stop. Must survive Doze mode by using AlarmManager.setExactAndAllowWhileIdle() for periodic wakeups, and request battery-optimization exemption at setup time.",
+      "priority": "high",
+      "status": "pending"
+    },
+    {
+      "id": "F02",
+      "title": "Sleep Phase Classification Algorithm",
+      "description": "Lightweight on-device algorithm that classifies movement epochs (30-second windows) into AWAKE, LIGHT, or DEEP. Uses the Euclidean norm of the 3-axis accelerometer vector, normalized to [-1,1]. A rolling standard deviation below a configurable threshold (~0.05 g) for ≥5 min flags DEEP sleep; moderate movement indicates LIGHT; activity above wake threshold indicates AWAKE. Stores epoch classifications to Room DB for trend analysis and to drive the smart alarm decision.",
+      "priority": "high",
+      "status": "pending"
+    },
+    {
+      "id": "F03",
+      "title": "Smart Alarm Scheduling (Wake Window)",
+      "description": "AlarmManager-based smart alarm that defines a configurable wake window (default 30 min, max 90 min) before the user's hard deadline. Within the window the service polls the current sleep phase every epoch; when LIGHT sleep is detected it fires the alarm immediately. If the window closes without a LIGHT phase detection, the hard deadline alarm fires anyway. Users set the window size and hard deadline via the alarm configuration screen.",
+      "priority": "high",
+      "status": "pending"
+    },
+    {
+      "id": "F04",
+      "title": "Alarm Playback with Gradual Volume Ramp",
+      "description": "MediaPlayer-based alarm player that starts at ~10% of the user's configured volume and ramps to 100% over a configurable ramp duration (default 30 s). Supports ringtone picker (system ringtones + local audio files). Plays through AudioManager.STREAM_ALARM channel. Handles audio focus and resumes after interruptions (calls, etc.). Stops immediately on dismiss, holds volume on snooze.",
+      "priority": "high",
+      "status": "pending"
+    },
+    {
+      "id": "F05",
+      "title": "Alarm Dismiss Screen with Anti-Snooze Challenge",
+      "description": "Full-screen Activity (shown over the lock screen via FLAG_SHOW_WHEN_LOCKED) that presents an optional dismiss challenge to ensure the user is fully awake. Challenges: (1) math problem (addition/subtraction with configurable difficulty), (2) shake-count (shake phone N times), (3) QR/barcode scan (user pre-registers a code on e.g. bathroom cabinet). Challenge type and difficulty are configurable. Snooze button shows remaining snooze count and adds 5/10 min; configurable max snooze count (default 2).",
+      "priority": "medium",
+      "status": "pending"
+    },
+    {
+      "id": "F06",
+      "title": "Sleep Session Storage (Room DB)",
+      "description": "Room database schema to persist all sleep sessions. A SleepSession entity stores: start_time, end_time, alarm_fire_time, phase at wake, snooze_count, challenge_type. A SleepEpoch entity stores per-epoch data: session_id, timestamp, movement_norm, phase. Provides DAOs with queries for per-night summaries, 7-day and 30-day aggregates, and sleep score (efficiency = time asleep / time in bed × 100).",
+      "priority": "medium",
+      "status": "pending"
+    },
+    {
+      "id": "F07",
+      "title": "Sleep History Dashboard (Charts + Stats)",
+      "description": "Jetpack Compose UI screen showing: (1) nightly sleep hypnogram (timeline bar of DEEP / LIGHT / AWAKE epochs), (2) 7-day sleep duration bar chart, (3) rolling sleep score. Uses a lightweight charting library (e.g. Vico or a custom Canvas-based chart). No cloud sync in v1 — local data only. Tapping a night opens the detailed hypnogram. Summary cards show avg sleep duration, avg score, best/worst night.",
+      "priority": "medium",
+      "status": "pending"
+    },
+    {
+      "id": "F08",
+      "title": "Battery Optimization Exemption Onboarding",
+      "description": "First-launch onboarding flow that walks the user through granting battery-optimization exemption (ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS). Detects known OEM battery-saver apps (Samsung Device Care, Huawei Power Genie, Xiaomi MIUI, OnePlus, etc.) and shows tailored deep-link instructions for each manufacturer. Includes a health-check screen the user can reopen from Settings to re-verify permissions. Covers: SCHEDULE_EXACT_ALARM permission (Android 12+), POST_NOTIFICATIONS (Android 13+), and BODY_SENSORS if gyroscope is added later.",
+      "priority": "high",
+      "status": "pending"
+    },
+    {
+      "id": "F09",
+      "title": "Alarm Configuration & Recurring Schedule",
+      "description": "Alarm creation/edit screen (Jetpack Compose) with: hard wake-up time, smart wake window size, repeat days (Mon–Sun toggles), alarm label, ringtone selector, volume, ramp duration, dismiss challenge type and difficulty, and max snooze count. Supports multiple simultaneous alarms. Alarms stored in Room DB; rescheduled on device reboot via BOOT_COMPLETED BroadcastReceiver.",
+      "priority": "high",
+      "status": "pending"
+    },
+    {
+      "id": "F10",
+      "title": "Bedtime Reminder & Sleep Goal",
+      "description": "Optional nightly reminder notification at a user-defined bedtime. Calculates and displays recommended bedtime based on target sleep duration (configurable, default 8 h) and the set alarm time. Notification is a simple heads-up with 'Start tracking' CTA that launches the tracking service directly. Weekly sleep goal progress shown on the dashboard (e.g. '5 of 7 nights ≥ 7 h').",
+      "priority": "low",
+      "status": "pending"
+    }
   ],
-  "tasks": [],
+  "tasks": [
+    {
+      "id": "T01",
+      "feature_id": "F01",
+      "title": "Implement SleepTrackingService (ForegroundService)",
+      "description": "Create SleepTrackingService extending Service. Register ACCELEROMETER sensor with SensorManager at TYPE_LINEAR_ACCELERATION, 4 Hz rate, maxReportLatencyUs = 30_000_000 (30 s batching). Store raw samples in a circular in-memory buffer. Start/stop via Intent actions. Acquire PARTIAL_WAKE_LOCK for CPU-keep-alive. Post an ongoing notification with a 'Tracking sleep…' message and a Stop action.",
+      "status": "pending"
+    },
+    {
+      "id": "T02",
+      "feature_id": "F01",
+      "title": "Handle Doze mode with periodic AlarmManager wakeup",
+      "description": "Register a repeating setExactAndAllowWhileIdle alarm every 15 min to keep sensor flush alive during Doze. In the BroadcastReceiver re-verify service is running and flush any pending sensor batch. Re-schedule the next wakeup immediately on each receive to chain wakeups reliably.",
+      "status": "pending"
+    },
+    {
+      "id": "T03",
+      "feature_id": "F01",
+      "title": "Handle device reboot: reschedule active tracking sessions",
+      "description": "Register BOOT_COMPLETED and QUICKBOOT_POWERON receivers. On reboot, check Room DB for a session that was tracking when the device shut down (session with null end_time), mark it as interrupted, and surface a notification informing the user.",
+      "status": "pending"
+    },
+    {
+      "id": "T04",
+      "feature_id": "F02",
+      "title": "Implement epoch-based movement scorer",
+      "description": "Every 30 seconds compute the Euclidean norm of each accelerometer sample (sqrt(x²+y²+z²)), then calculate the standard deviation across the epoch. Map to phase: std < 0.04 g = DEEP, 0.04–0.15 g = LIGHT, > 0.15 g = AWAKE. Write the epoch result (timestamp, norm_std, phase enum) into Room via SleepEpochDao. Expose current phase as a StateFlow so the alarm scheduler can observe it.",
+      "status": "pending"
+    },
+    {
+      "id": "T05",
+      "feature_id": "F02",
+      "title": "Calibration pass and per-device threshold tuning",
+      "description": "Add a 2-minute calibration mode at session start that captures the phone's resting noise floor (phone still on mattress). Auto-adjust DEEP and AWAKE thresholds relative to the measured noise floor. Store calibration offsets per device in SharedPreferences so subsequent sessions start calibrated.",
+      "status": "pending"
+    },
+    {
+      "id": "T06",
+      "feature_id": "F02",
+      "title": "Sleep onset detection (time-to-fall-asleep)",
+      "description": "Detect sleep onset as the first continuous 10-min block of DEEP or LIGHT epochs after the session starts. Log sleep latency (time from session start to sleep onset) in SleepSession. Surface as a stat on the history screen ('Fell asleep in N min').",
+      "status": "pending"
+    },
+    {
+      "id": "T07",
+      "feature_id": "F03",
+      "title": "Implement smart alarm wake-window logic",
+      "description": "When the wake window opens (deadline minus window_minutes), begin observing the current phase StateFlow. On the first LIGHT epoch within the window, fire the alarm via AlarmManager.setAlarmClock() and cancel the hard-deadline alarm. If the window elapses without LIGHT detection, the hard-deadline alarm fires. Use AlarmManager.setAlarmClock() for both so the alarm icon appears in the status bar.",
+      "status": "pending"
+    },
+    {
+      "id": "T08",
+      "feature_id": "F03",
+      "title": "Alarm configuration persistence and rescheduling",
+      "description": "Persist alarms in Room DB (AlarmEntity: id, deadline_time, window_minutes, repeat_days_bitmask, enabled). On app launch and BOOT_COMPLETED, iterate enabled alarms and schedule the next occurrence with AlarmManager. Handle repeat: after firing, schedule the next week day immediately. Handle daylight-saving transitions via Calendar API rather than raw millisecond offsets.",
+      "status": "pending"
+    },
+    {
+      "id": "T09",
+      "feature_id": "F04",
+      "title": "Implement MediaPlayer alarm with volume ramp",
+      "description": "In AlarmPlayerService, open the user's selected ringtone URI via MediaPlayer. Set AudioAttributes to USAGE_ALARM, CONTENT_TYPE_SONIFICATION. Start at volume = max_volume * 0.1, then post a Runnable every 500 ms that increments volume by (max_volume * 0.9 / (ramp_seconds * 2)) until max is reached. Release MediaPlayer on dismiss/snooze.",
+      "status": "pending"
+    },
+    {
+      "id": "T10",
+      "feature_id": "F04",
+      "title": "Ringtone picker and audio focus handling",
+      "description": "Build a ringtone selection screen showing system alarm ringtones (RingtoneManager.TYPE_ALARM) plus a 'Pick from files' option (SAF file picker, persisted URI). Handle AudioFocus: request AUDIOFOCUS_GAIN, duck on AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK (incoming call), pause and resume on AUDIOFOCUS_LOSS / regain. Resume alarm if call ends within 2 min.",
+      "status": "pending"
+    },
+    {
+      "id": "T11",
+      "feature_id": "F05",
+      "title": "Build full-screen alarm dismiss Activity",
+      "description": "Create AlarmDismissActivity with windowLayoutInDisplayCutoutMode=shortEdges, FLAG_SHOW_WHEN_LOCKED, FLAG_TURN_SCREEN_ON, FLAG_KEEP_SCREEN_ON. Show alarm label, current time, snooze button (with remaining count badge), and dismiss button / challenge widget. Activity is started by AlarmPlayerService via a PendingIntent. Ensure it appears over the keyguard on Android 8.1+ using KeyguardManager.",
+      "status": "pending"
+    },
+    {
+      "id": "T12",
+      "feature_id": "F05",
+      "title": "Implement dismiss challenge modules (math, shake, QR)",
+      "description": "Math challenge: generate random arithmetic problem at configured difficulty (easy = single digit add/sub, hard = 2-digit multiply). Shake challenge: use accelerometer magnitude peaks to count shakes, show progress ring. QR challenge: open CameraX preview, decode QR with ML Kit Barcode Scanning, compare against stored code. Each challenge is a Composable injected into AlarmDismissActivity based on user setting.",
+      "status": "pending"
+    },
+    {
+      "id": "T13",
+      "feature_id": "F06",
+      "title": "Define Room DB schema: SleepSession and SleepEpoch",
+      "description": "SleepSession: id (UUID), alarm_id (FK), start_ms, end_ms, sleep_onset_ms, alarm_fire_ms, phase_at_wake (enum), snooze_count, challenge_type, sleep_score (float). SleepEpoch: id, session_id (FK), epoch_start_ms, movement_std (float), phase (enum). Write SleepSessionDao (insert, updateEnd, getByDateRange, get7DaySummary) and SleepEpochDao (insertAll, getBySession). Use TypeConverters for enums.",
+      "status": "pending"
+    },
+    {
+      "id": "T14",
+      "feature_id": "F06",
+      "title": "Compute and persist nightly sleep score",
+      "description": "On session end, calculate: sleep_efficiency = (total DEEP + LIGHT epoch time) / (end_ms - start_ms) * 100. Weighted score that also penalizes > 2 snoozes and rewards waking in LIGHT phase. Write computed score back to SleepSession. Expose getSleepScore() from DAO for display on history screen.",
+      "status": "pending"
+    },
+    {
+      "id": "T15",
+      "feature_id": "F07",
+      "title": "Build nightly hypnogram Composable",
+      "description": "Custom Canvas-based Composable that draws a horizontal timeline bar. Each 30-second epoch is a colored segment: DEEP = dark blue, LIGHT = medium blue, AWAKE = orange. X-axis is time (session start to end), Y-axis label shows phase depth. Tap/drag shows a tooltip with time and phase. Animate entry with a left-to-right reveal.",
+      "status": "pending"
+    },
+    {
+      "id": "T16",
+      "feature_id": "F07",
+      "title": "Build 7-day summary charts and stats cards",
+      "description": "Compose screen with: (1) vertical bar chart of nightly sleep duration (7 bars), goal line drawn at user's target. (2) Sleep score sparkline for last 7 nights. (3) Summary cards: avg duration, avg score, sleep debt vs goal, longest streak of meeting goal. Use Vico or a custom Canvas chart. Load data via ViewModel + Room Flow queries.",
+      "status": "pending"
+    },
+    {
+      "id": "T17",
+      "feature_id": "F08",
+      "title": "Implement battery optimization permission onboarding screen",
+      "description": "Multi-step onboarding Composable flow: step 1 explains why the app needs battery exemption, step 2 fires ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, step 3 checks for OEM battery-saver (detect manufacturer via Build.MANUFACTURER, show deep-link to OEM settings with per-brand instructions for Samsung / Xiaomi / Huawei / OnePlus / Oppo). Mark onboarding complete in SharedPreferences. Skip if already exempt.",
+      "status": "pending"
+    },
+    {
+      "id": "T18",
+      "feature_id": "F08",
+      "title": "Permission health-check screen and runtime re-verification",
+      "description": "Settings screen item 'Check permissions' that re-runs all permission checks: battery exemption, SCHEDULE_EXACT_ALARM (Android 12+), POST_NOTIFICATIONS (Android 13+), and optionally RECORD_AUDIO (for future sound detection). Show green/red status per permission with a 'Fix' button that deep-links to the relevant system settings page. Re-check on every app foreground resume and show a persistent warning banner in the alarm list if any critical permission is missing.",
+      "status": "pending"
+    },
+    {
+      "id": "T19",
+      "feature_id": "F09",
+      "title": "Build alarm creation/edit screen (Compose)",
+      "description": "Jetpack Compose screen with: TimePicker for deadline, slider or dropdown for wake window (5–90 min), weekday toggle row, label TextField, ringtone selector (navigates to F04 picker), volume slider, ramp-duration slider, challenge type selector (None/Math/Shake/QR), difficulty selector (conditional), max snooze stepper. Save to Room on confirm. Validate that window does not exceed time-to-midnight.",
+      "status": "pending"
+    },
+    {
+      "id": "T20",
+      "feature_id": "F09",
+      "title": "Alarm list home screen with enable/disable toggle",
+      "description": "Home screen Composable showing a LazyColumn of AlarmCards. Each card shows: time, label, active days, wake window badge, enabled switch. Swipe-to-delete with undo snackbar. FAB to create a new alarm. On toggle, reschedule or cancel the AlarmManager alarm immediately. Show a 'next alarm in X h Y min' subtitle under the next upcoming alarm.",
+      "status": "pending"
+    },
+    {
+      "id": "T21",
+      "feature_id": "F10",
+      "title": "Implement bedtime reminder notification",
+      "description": "When a user enables the bedtime reminder for an alarm, schedule a daily notification at (alarm_deadline - target_sleep_hours). Notification text: 'Time to wind down — alarm in 8 h'. Include a 'Start tracking now' action that starts SleepTrackingService directly. Use AlarmManager.setAlarmClock() so it fires even in Doze. Cancel and reschedule on alarm edit.",
+      "status": "pending"
+    },
+    {
+      "id": "T22",
+      "feature_id": "F10",
+      "title": "Sleep goal progress widget on dashboard",
+      "description": "Dashboard card showing: this week's goal (e.g. '≥ 7 h for 5 nights'), progress bar with nights-met count, current streak. Read from Room 7-day aggregate query. Also show recommended bedtime for today ('Go to bed by 10:30 PM for 8 h sleep'). Tap card navigates to full history screen.",
+      "status": "pending"
+    }
+  ],
   "architecture": {},
   "design": [],
   "code": [],
