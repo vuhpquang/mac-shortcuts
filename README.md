@@ -1,97 +1,125 @@
 # Software Team
 
-An agent-team framework for running autonomous AI software teams, with full support for running **multiple projects in parallel** — each with its own isolated blackboard.
+An agent-team framework for running autonomous AI software teams with a file-based blackboard and role-based agents.
 
 ## Agent Architecture
 
 ```
-                        ┌─────────────────────────────────────────┐
-                        │            BLACKBOARD                   │
-                        │  blackboard/{project}/state.json        │
-                        │  features[] tasks[] architecture        │
-                        │  design[] code[] test_results[] bugs[]  │
-                        └─────────────────┬───────────────────────┘
-                                          │ read/write
-     ┌────────────────────────────────────┼──────────────────────┐
-     │                                    │                      │
-     ▼                                    ▼                      ▼
-┌──────────────────┐             ┌──────────────────┐   ┌──────────────┐
-│ Researcher Agent │──features──▶│  TechLead Agent  │   │ Design Agent │
-│ (researcher.md)  │             │  (techlead.md)   │   │ (design.md)  │
-└──────────────────┘             └────────┬─────────┘   └──────────────┘
-Market research:                 Phase 0: tasks[]         UI/UX design
-- user pain points               Phase 1: architecture    per feature
-- competitor gaps                Phase 2: git commit
-- feature opportunities          Phase 3: release
-                                 ◀── ONLY agent with git
-                                          │
-                    ┌────────────────────┐│
-                    │                    ▼▼
-           ┌──────────────┐    ┌──────────────────┐    ┌──────────────┐
-           │  Dev Agent   │───▶│  Worker (×N)     │    │   QC Agent   │
-           │  (dev.md)    │    │  (worker.md)     │    │   (qc.md)    │
-           └──────────────┘    └──────────────────┘    └──────────────┘
-           Programmer           Spawned via Task          Verifies features,
-           Supervisor           tool per task             writes test_results[]
-                                claude-haiku              and bugs[]
+                    ┌──────────────────────────────────────┐
+                    │            BLACKBOARD                │
+                    │  .agents/blackboard.md               │
+                    │  tasks[] · features[] · status       │
+                    │  .agents/memory.md (persistent facts)│
+                    └──────────────┬───────────────────────┘
+                                   │ read/write
+     ┌─────────────────────────────┼─────────────────────────┐
+     │                             │                         │
+     ▼                             ▼                         ▼
+┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
+│   Orchestrator  │     │ Backend / Frontend│     │    Reviewer     │
+│ (orchestrator)  │────▶│ (backend/frontend)│────▶│  (reviewer)     │
+└─────────────────┘     └────────┬─────────┘     └─────────────────┘
+Decomposes tasks,        Implements code,          Reviews code,
+assigns roles,           writes to src/,           runs git,
+tracks progress          updates blackboard         writes decisions.md
+                                 │
+                                 ▼
+                    ┌──────────────────┐
+                    │     Tester       │
+                    │   (tester)       │
+                    └──────────────────┘
+                    Writes + runs tests,
+                    reports coverage
 ```
 
-### Agent roles & blackboard access
+### Agent roles
 
-| Agent      | Reads                          | Writes                                   |
-|------------|--------------------------------|------------------------------------------|
-| Researcher | context.md (goal + domain)     | features[] (with market rationale)       |
-| Design     | features[], tasks[]            | design[]                                 |
-| TechLead   | ALL                            | tasks[], architecture, decisions[], git  |
-| Dev        | tasks[], architecture          | tasks[].status                           |
-| Worker     | tasks[assigned], architecture  | code[], files in projects/               |
-| QC         | features[], code[]             | test_results[], bugs[]                   |
+| Agent | Responsibility | Writes to | Git? |
+|-------|---------------|-----------|------|
+| Orchestrator | Decompose tasks, assign roles, track progress | blackboard.md (tasks) | No |
+| Backend | APIs, DB, server logic | src/ + blackboard (status) | No |
+| Frontend | UI components, styling, client state | src/ + blackboard (status) | No |
+| Tester | Unit, integration, E2E tests | test files + blackboard (status) | No |
+| Reviewer | Code review, quality gates, commits | decisions.md + git | **YES — only agent** |
 
-### Pipeline flow
+### Execution flow
 
 ```
-Researcher → Design → TechLead (tasks+arch) → Dev → Workers → TechLead (commit) → QC → TechLead (release)
+/agent-assign "build login API"
+  → Orchestrator decomposes → writes tasks to blackboard
+
+/agent-run backend    → Backend implements API tasks
+/agent-run frontend   → Frontend implements UI tasks
+/agent-run tester     → Tester writes + runs tests
+/agent-review         → Reviewer reviews → commits → pushes
+
+/team-status          → Show full blackboard summary
 ```
 
-Human escalation at any step via `bash scripts/ask_human.sh "question" {project}`.
+Human escalation at any step:
+```bash
+bash ./scripts/ask_human.sh "question" {project_name}
+```
 
 ---
 
 ## Project structure
 
 ```
+.agents/
+  blackboard.md          ← shared task state (single source of truth)
+  memory.md              ← persistent facts and conventions across sessions
+  personas/              ← agent identity and boundaries per role
+  │  orchestrator.md
+  │  backend.md
+  │  frontend.md
+  │  tester.md
+  │  reviewer.md
+  skills/                ← domain knowledge per role
+  │  orchestrator/SKILL.md   task decomposition, role assignment rules
+  │  backend/SKILL.md        API patterns, DB conventions, error handling
+  │  frontend/SKILL.md       component structure, styling rules
+  │  tester/SKILL.md         test strategy, coverage requirements
+  │  reviewer/SKILL.md       review checklist, quality gates, git rules
+
 .claude/
-  agents/          ← agent role definitions (single source of truth)
-  │  researcher.md   market research → features[]
-  │  design.md       UI/UX design → design[]
-  │  techlead.md     task planning + architecture + git (phases 0–3)
-  │  dev.md          programmer supervisor → spawns workers
-  │  worker.md       single-task implementer (haiku, spawned by dev)
-  │  qc.md           verifies features → test_results[], bugs[]
-  commands/        ← project slash commands
-  │  /new-project      guided project setup
-  │  /run-team         start the full agent pipeline
-  │  /run-solo         single-agent mode
-  │  /project-status   show blackboard overview + next action
-  │  /fix-bugs         targeted bug-fix cycle after QC
-  │  /request-merge    validate readiness then merge develop → main
-scripts/           ← shell utilities called by agents and commands
-  │  run.sh            launch a project in solo|team mode
-  │  init_project.sh   create git submodule + blackboard namespace
-  │  start-agents.sh   launch all agent tmux sessions + ttyd + relay
-  │  ask_human.sh      human escalation — pause and capture answer to blackboard
-  │  request_merge.sh  stakeholder approval UI for develop → main merge
-projects/          ← git submodules, one per project
+  agents/                ← Claude Code sub-agent definitions
+  │  orchestrator.md
+  │  backend.md
+  │  frontend.md
+  │  tester.md
+  │  reviewer.md
+  commands/              ← slash commands
+  │  /agent-assign       post a task to the blackboard
+  │  /agent-run          run an agent role on their tasks
+  │  /agent-review       trigger reviewer on completed tasks
+  │  /team-status        show blackboard summary + next actions
+  │  /project-status     show blackboard overview
+  │  /fix-bugs           targeted bug-fix cycle
+  │  /request-merge      validate readiness then merge develop → main
+
+.logs/
+  decisions.md           ← architecture decision records (written by reviewer)
+
+scripts/
+  start-agents.sh        ← launch all 5 agent tmux sessions + ttyd + relay
+  run.sh                 ← launch a project in solo|team mode
+  init_project.sh        ← create git submodule + blackboard namespace
+  ask_human.sh           ← human escalation — pause and capture answer
+  request_merge.sh       ← stakeholder approval UI for develop → main merge
+
 blackboard/
-  projects.json    ← registry of all project names
+  projects.json          ← registry of all project names
   {project}/
-    state.json     ← blackboard state (features, tasks, code, bugs, tests)
-    context.md     ← project goal and tech stack
+    state.json           ← legacy project state (existing projects)
+    context.md           ← project goal and tech stack
   dashboard/
-    index.html     ← visual web dashboard (multi-project)
-run.md             ← orchestrator pipeline (read by run.sh team mode)
-index.html         ← standalone agent terminal grid
-start.sh           ← one-command launcher
+    index.html           ← visual web dashboard (multi-project)
+
+projects/                ← git submodules, one per project
+index.html               ← standalone agent terminal grid
+start.sh                 ← one-command launcher
+CLAUDE.md                ← root context injected into every agent session
 ```
 
 ---
@@ -102,7 +130,7 @@ start.sh           ← one-command launcher
 bash start.sh
 ```
 
-Opens the browser to the dashboard with all 6 agents ready and waiting.
+Opens the dashboard with all 5 agents idle and waiting.
 
 ---
 
@@ -112,55 +140,67 @@ Opens the browser to the dashboard with all 6 agents ready and waiting.
 bash scripts/init_project.sh <project_name>
 ```
 
-This creates:
+Creates:
 - `./projects/<project_name>/` git submodule
 - `./blackboard/<project_name>/state.json`
 - `./blackboard/<project_name>/context.md`
 
 Then fill in `blackboard/<project_name>/context.md` with your goal and tech stack.
 
-Also add the project name to `blackboard/projects.json` so the dashboard can find it.
+## Assign a task
 
-## Run an agent team
+Type directly in the Orchestrator terminal, or use the chat bar:
 
-```bash
-bash scripts/run.sh <project_name> solo "Project goal"
+```
+/agent-assign build a login API with JWT auth
 ```
 
-or
+The orchestrator decomposes it and writes tasks to `.agents/blackboard.md`.
 
-```bash
-bash scripts/run.sh <project_name> team "Project goal"
+## Run agents
+
+```
+/agent-run backend
+/agent-run frontend
+/agent-run tester
+/agent-review
 ```
 
-## Run multiple projects in parallel
+Or send messages directly to any agent via the chat bar in the dashboard.
 
-Open **one terminal per project**, each scoped to its own blackboard:
+## Check status
 
-```bash
-# Terminal 1
-bash scripts/run.sh gesturekit team "GestureKit macOS app"
-
-# Terminal 2
-bash scripts/run.sh myapp team "My other app"
+```
+/team-status
 ```
 
-Each team reads/writes only `blackboard/<project_name>/` — **no shared state, no conflicts.**
+---
 
-## Blackboard Dashboard
+## Agent startup sequence
+
+Every agent follows the same boot sequence:
+
+1. Read `.agents/blackboard.md` — find assigned tasks
+2. Read `.agents/personas/{role}.md` — load identity and boundaries
+3. Read `.agents/skills/{role}/SKILL.md` — load domain knowledge
+4. Read `.agents/memory.md` — load project conventions
+5. Execute tasks; update blackboard status as work progresses
+
+---
+
+## Dashboard
 
 Visualize any project's state (features, tasks, bugs, test results, architecture).
 
 ```bash
-cd blackboard && python3 -m http.server 8000
+bash start.sh
 ```
 
-Then open: http://localhost:8000/dashboard/
+Then open: `http://localhost:8000/dashboard/`
 
 - Use the **project switcher** in the sidebar to switch between projects
-- Or link directly: `http://localhost:8000/dashboard/?project=gesturekit`
-- Click **Agents** in the sidebar to see all 6 live terminal panes + chat bar
-- The dashboard reads blackboard files dynamically — refresh to pick up changes
+- Click **Agents** in the sidebar to see all 5 live terminal panes + chat bar
+- The chat bar broadcasts to all agents or targets a specific one
 
 ## Human escalation
 
