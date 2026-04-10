@@ -201,12 +201,17 @@ details .det-body { font-size:12px; color:var(--muted); line-height:1.6; padding
 
 /* ── Project selector ── */
 .proj-select-wrap { padding: 10px 16px; border-bottom: 1px solid var(--border); }
-.proj-select-label { font-size:10px; font-weight:600; color:var(--dim); text-transform:uppercase; letter-spacing:.7px; margin-bottom:5px; }
-#proj-select {
+.proj-select-label { font-size:10px; font-weight:600; color:var(--dim); text-transform:uppercase; letter-spacing:.7px; margin-bottom:6px; }
+.proj-list { display:flex; flex-direction:column; gap:3px; }
+.proj-btn {
   width:100%; background:var(--surface2); color:var(--text); border:1px solid var(--border);
-  border-radius:var(--r-sm); padding:5px 8px; font-size:13px; cursor:pointer; outline:none;
+  border-radius:var(--r-sm); padding:7px 10px; font-size:13px; cursor:pointer;
+  text-align:left; font-family:var(--mono); display:flex; align-items:center; gap:6px;
 }
-#proj-select:hover { border-color:var(--accent); }
+.proj-btn:hover { border-color:var(--accent); color:var(--accent); }
+.proj-btn.active { background:#1a3a1f; border-color:var(--green); color:var(--green); }
+.proj-btn .proj-check { opacity:0; font-size:12px; }
+.proj-btn.active .proj-check { opacity:1; }
 
 /* ── Loading / error ── */
 #loading { display:flex; align-items:center; justify-content:center; height:100vh; flex:1; flex-direction:column; gap:12px; color:var(--muted); }
@@ -328,7 +333,7 @@ details .det-body { font-size:12px; color:var(--muted); line-height:1.6; padding
   </div>
   <div class="proj-select-wrap">
     <div class="proj-select-label">Switch project</div>
-    <select id="proj-select" onchange="loadProject(this.value)"></select>
+    <div class="proj-list" id="proj-list"></div>
   </div>
   <div class="sb-nav">
     <div class="nav-section">Overview</div>
@@ -531,9 +536,21 @@ let TECH_SUMMARY_MD = '';
 let currentPage = 'overview';
 let CURRENT_PROJECT = null;
 
+// ── Project switcher ───────────────────────────────────────────────
+function switchProject(name) {
+  document.querySelectorAll('.proj-btn').forEach(b => b.classList.remove('active'));
+  const btn = document.getElementById('proj-btn-' + name);
+  if (btn) btn.classList.add('active');
+  loadProject(name);
+}
+
 // ── Project loader ─────────────────────────────────────────────────
 async function loadProject(name) {
   CURRENT_PROJECT = name;
+  // Highlight active project button
+  document.querySelectorAll('.proj-btn').forEach(b => b.classList.remove('active'));
+  const btn = document.getElementById('proj-btn-' + name);
+  if (btn) btn.classList.add('active');
   // Update URL param without reload
   const url = new URL(window.location);
   url.searchParams.set('project', name);
@@ -571,7 +588,7 @@ async function boot() {
   // Load project list
   let projects = [];
   try {
-    const res = await fetch('../projects.json');
+    const res = await fetch('../projects.json?t=' + Date.now());
     if (res.ok) projects = await res.json();
   } catch (_) {}
 
@@ -582,14 +599,17 @@ async function boot() {
     return;
   }
 
-  // Populate selector
-  const sel = document.getElementById('proj-select');
-  sel.innerHTML = projects.map(p => `<option value="${p}">${p}</option>`).join('');
+  // Populate project button list
+  const list = document.getElementById('proj-list');
+  list.innerHTML = projects.map(p =>
+    `<button class="proj-btn" id="proj-btn-${p}" onclick="switchProject('${p}')">
+      <span class="proj-check">✓</span>${p}
+    </button>`
+  ).join('');
 
   // Determine which project to show (URL param → first)
   const param = new URL(window.location).searchParams.get('project');
   const initial = (param && projects.includes(param)) ? param : projects[0];
-  sel.value = initial;
 
   await loadProject(initial);
 }
