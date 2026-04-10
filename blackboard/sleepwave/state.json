@@ -9,227 +9,288 @@
     {
       "id": "F01",
       "title": "Foreground Sensor Service (Accelerometer Sampling)",
-      "description": "A persistent ForegroundService that holds a WakeLock and samples the accelerometer at ~4 Hz (using SensorManager with maxReportLatencyUs batching to save battery). The service posts an ongoing notification as required by Android. Handles sensor registration/deregistration on sleep start/stop. Must survive Doze mode by using AlarmManager.setExactAndAllowWhileIdle() for periodic wakeups, and request battery-optimization exemption at setup time.",
+      "description": "A persistent ForegroundService with foregroundServiceType='health' (required Android 14+) that holds a PARTIAL_WAKE_LOCK and samples the accelerometer at ~4 Hz using SensorManager with TYPE_LINEAR_ACCELERATION and maxReportLatencyUs=30_000_000 (30s batching) to reduce battery load. Posts an ongoing notification with a 'Tracking sleep' message as required. Must survive Doze by chaining setExactAndAllowWhileIdle() wakeups every 9 minutes (the practical minimum under Doze). Requests USE_EXACT_ALARM (granted on install for alarm apps; no user prompt needed) rather than SCHEDULE_EXACT_ALARM (denied by default on Android 14+). Requests ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS at first launch. On Android 15, the service type must be declared in the manifest; BOOT_COMPLETED cannot start health or mediaProcessing foreground services directly — use a WorkManager one-time task triggered from BOOT_COMPLETED instead.",
       "priority": "high",
-      "status": "pending"
+      "status": "pending",
+      "rationale": "Battery drain is the #1 technical user complaint for Sleep as Android (jumping from 20-25% to 50-70% on some devices after updates). Android 14 tightened SCHEDULE_EXACT_ALARM (denied by default) and Android 15 introduced mandatory foreground service type declarations and banned certain FGS starts from BOOT_COMPLETED receivers — these are real engineering landmines that have caused widespread 1-star reviews for Google Clock and third-party apps alike. Using USE_EXACT_ALARM (normal permission, auto-granted for alarm apps) avoids the user-permission dance entirely. Sensor batching at 30s reduces CPU wake events by ~87% vs continuous sampling."
     },
     {
       "id": "F02",
-      "title": "Sleep Phase Classification Algorithm",
-      "description": "Lightweight on-device algorithm that classifies movement epochs (30-second windows) into AWAKE, LIGHT, or DEEP. Uses the Euclidean norm of the 3-axis accelerometer vector, normalized to [-1,1]. A rolling standard deviation below a configurable threshold (~0.05 g) for ≥5 min flags DEEP sleep; moderate movement indicates LIGHT; activity above wake threshold indicates AWAKE. Stores epoch classifications to Room DB for trend analysis and to drive the smart alarm decision.",
+      "title": "Sleep Phase Classification Algorithm (Honest Actigraphy)",
+      "description": "Lightweight on-device algorithm classifying 30-second epochs into AWAKE, LIGHT, or DEEP using Euclidean norm of the 3-axis accelerometer vector. Rolling standard deviation < 0.04 g over a 5-minute window = DEEP; 0.04–0.15 g = LIGHT; > 0.15 g = AWAKE. Includes a 2-minute resting calibration at session start to capture the per-device noise floor and auto-adjust thresholds. Sleep onset detection: first continuous 10-min block of non-AWAKE epochs. Epoch results (timestamp, norm_std, phase) written to Room DB via SleepEpochDao. Current phase exposed as StateFlow. UI clearly labels tracking as 'movement-based estimate' — no false EEG/PSG equivalency claims.",
       "priority": "high",
-      "status": "pending"
+      "status": "pending",
+      "rationale": "Research is unambiguous: phone accelerometer-only tracking reliably distinguishes sleep vs wake (90% sensitivity) but cannot accurately identify sleep stages — a 2023 PMC study found Pillow (accelerometer-only) assigned 59% of epochs as deep sleep vs 10.8% actual (PSG). The scientific literature validates actigraphy for sleep/wake detection as comparable to wrist actigraphy, but multi-stage classification requires PPG/HRV data (wearables). SleepWave must be honest about this to avoid the main complaint about Sleep Cycle ('it cannot detect if I'm asleep') while still delivering a reliable smart alarm trigger. The per-device calibration approach is derived from validated DPSleep open-source longitudinal algorithm methodology."
     },
     {
       "id": "F03",
-      "title": "Smart Alarm Scheduling (Wake Window)",
-      "description": "AlarmManager-based smart alarm that defines a configurable wake window (default 30 min, max 90 min) before the user's hard deadline. Within the window the service polls the current sleep phase every epoch; when LIGHT sleep is detected it fires the alarm immediately. If the window closes without a LIGHT phase detection, the hard deadline alarm fires anyway. Users set the window size and hard deadline via the alarm configuration screen.",
+      "title": "Smart Alarm Wake-Window Scheduler",
+      "description": "AlarmManager-based smart alarm defining a configurable wake window (default 30 min, max 90 min) before the user's hard deadline. Uses AlarmManager.setAlarmClock() for both the window-open trigger and the hard-deadline fallback — setAlarmClock() shows the system alarm icon in the status bar and is exempt from Doze deferral. Within the window, the service polls the current phase StateFlow; on first LIGHT epoch detection it fires the alarm and cancels the hard fallback. If the window closes without LIGHT detection, the hard deadline fires. Window boundaries and alarms rescheduled on every BOOT_COMPLETED (via WorkManager task). AlarmEntity stored in Room: id, deadline_time, window_minutes, repeat_days_bitmask, enabled.",
       "priority": "high",
-      "status": "pending"
+      "status": "pending",
+      "rationale": "The smart alarm concept has limited but real scientific backing: waking from light/N2 sleep reduces sleep inertia compared to waking from deep/SWS. A 2024 PMC multimodal smart alarm study found that while average effects were modest, evening chronotypes showed measurable improvement with gradual wake stimuli. The critical insight from user research: Sleep Cycle's free tier buries smart alarm behind a paywall (only fires at a single time without premium), and Sleep as Android's smart alarm is only active every other day in the free version (subscription $84.99 lifetime as of 2026). SleepWave makes the core smart alarm fully free, which is the primary market differentiation."
     },
     {
       "id": "F04",
-      "title": "Alarm Playback with Gradual Volume Ramp",
-      "description": "MediaPlayer-based alarm player that starts at ~10% of the user's configured volume and ramps to 100% over a configurable ramp duration (default 30 s). Supports ringtone picker (system ringtones + local audio files). Plays through AudioManager.STREAM_ALARM channel. Handles audio focus and resumes after interruptions (calls, etc.). Stops immediately on dismiss, holds volume on snooze.",
+      "title": "Alarm Playback with Gradual Volume Ramp and Melody Science",
+      "description": "MediaPlayer-based alarm player starting at 10% volume and ramping to 100% over a configurable duration (15–120 s, default 30 s). Plays through AudioManager.STREAM_ALARM with AudioAttributes USAGE_ALARM + CONTENT_TYPE_SONIFICATION. On Android 15, audio focus requests require the app to have a foreground service running — ensures AlarmPlayerService is started before requesting AUDIOFOCUS_GAIN. Supports: system ringtones (RingtoneManager.TYPE_ALARM), local audio (SAF picker, persisted URI), and a set of built-in gentle wake tones including melodic alarm sounds in the 500 Hz range (research-validated for reduced sleep inertia vs abrupt buzzers). Handles audio focus loss for calls (pause/resume). Stops on dismiss; holds volume on snooze.",
       "priority": "high",
-      "status": "pending"
+      "status": "pending",
+      "rationale": "A 2020 PubMed study (Alarm tones, music and their elements: Analysis of reported waking sounds) found melodic alarms in the 500 Hz range significantly reduce sleep inertia vs abrupt high-frequency tones. Gradual volume ramp is the #1 cited feature users love in reviews of Sleep as Android ('slowly increasing volume thunderstorm alarm'). The Android 15 audio focus restriction (must be foreground or top app to request audio focus) is a new technical requirement that will break apps not declaring the mediaPlayback or alarm service type — this needs to be handled correctly at launch."
     },
     {
       "id": "F05",
       "title": "Alarm Dismiss Screen with Anti-Snooze Challenge",
-      "description": "Full-screen Activity (shown over the lock screen via FLAG_SHOW_WHEN_LOCKED) that presents an optional dismiss challenge to ensure the user is fully awake. Challenges: (1) math problem (addition/subtraction with configurable difficulty), (2) shake-count (shake phone N times), (3) QR/barcode scan (user pre-registers a code on e.g. bathroom cabinet). Challenge type and difficulty are configurable. Snooze button shows remaining snooze count and adds 5/10 min; configurable max snooze count (default 2).",
+      "description": "Full-screen Activity over lock screen using FLAG_SHOW_WHEN_LOCKED + FLAG_TURN_SCREEN_ON + FLAG_KEEP_SCREEN_ON. On Android 8.1+, uses KeyguardManager.requestDismissKeyguard(). Shows alarm label, current time, snooze button (with remaining count badge, configurable max default 2), and dismiss button/challenge widget. Challenges: (1) math problem (configurable difficulty), (2) shake N times (accelerometer magnitude peaks), (3) QR/barcode scan (CameraX + ML Kit). Challenge type and difficulty user-configurable per alarm. Snooze adds 5 or 10 min (user choice); limited snooze count surfaces a 'last snooze' warning. After max snoozes, dismiss only — no more snooze button.",
       "priority": "medium",
-      "status": "pending"
+      "status": "pending",
+      "rationale": "QR scan is the most cited beloved feature in Reddit reviews of Sleep as Android ('loved the QR scan feature'). Alarmy built a $11M business largely on challenge-based dismissal. Scientific research confirms: a 2022 Journal of Physiological Anthropology study found snooze alarms prolong sleep inertia vs single alarm. However, a 2024 Sundelin study found 30 min of snoozing improved cognitive performance for habitual snoozers by preventing SWS awakenings. The compromise: allow limited snoozing but make it a conscious choice with a cap. The QR challenge specifically forces physical movement (to bathroom cabinet), addressing the real sleep inertia behavioral problem."
     },
     {
       "id": "F06",
-      "title": "Sleep Session Storage (Room DB)",
-      "description": "Room database schema to persist all sleep sessions. A SleepSession entity stores: start_time, end_time, alarm_fire_time, phase at wake, snooze_count, challenge_type. A SleepEpoch entity stores per-epoch data: session_id, timestamp, movement_norm, phase. Provides DAOs with queries for per-night summaries, 7-day and 30-day aggregates, and sleep score (efficiency = time asleep / time in bed × 100).",
+      "title": "Sound Environment Monitoring (Snore & Noise Detection)",
+      "description": "Optional microphone-based audio analysis during sleep tracking. Uses Android AudioRecord API with VOICE_RECOGNITION source at 16kHz mono. Processes audio in 5-second windows using a simple energy threshold + zero-crossing rate classifier to detect: snoring events, loud noise events, potential sleep talking. Results stored in SoundEventEntity in Room: session_id, timestamp_ms, event_type (SNORE/NOISE/TALK), amplitude_db. Displayed on history screen as an event overlay on the hypnogram. Requires RECORD_AUDIO permission (requested at feature opt-in, not at install). Increases battery use by ~10% (clearly communicated to user). Can be disabled independently of accelerometer tracking.",
       "priority": "medium",
-      "status": "pending"
+      "status": "pending",
+      "rationale": "Sound/snore detection is the second most-praised feature in Sleep as Android reviews and a primary reason users pay for sleep apps. Alarmy's help documentation confirms they support sound detection for 'snoring, teeth grinding' etc. Sleep Cycle's snore detection is locked behind $39.99/year premium. This feature increases app stickiness and gives users a concrete reason to leave the phone near the bed (rather than just beside it). The energy+ZCR approach is simple but effective for binary snore/not-snore classification without requiring ML model weights shipped in the APK. RECORD_AUDIO is declared but permission-gated at feature opt-in to minimize permission friction at install."
     },
     {
       "id": "F07",
-      "title": "Sleep History Dashboard (Charts + Stats)",
-      "description": "Jetpack Compose UI screen showing: (1) nightly sleep hypnogram (timeline bar of DEEP / LIGHT / AWAKE epochs), (2) 7-day sleep duration bar chart, (3) rolling sleep score. Uses a lightweight charting library (e.g. Vico or a custom Canvas-based chart). No cloud sync in v1 — local data only. Tapping a night opens the detailed hypnogram. Summary cards show avg sleep duration, avg score, best/worst night.",
+      "title": "Sleep Session Storage (Room DB)",
+      "description": "Room database schema persisting all session data. SleepSession: id (UUID), alarm_id (FK), start_ms, end_ms, sleep_onset_ms, alarm_fire_ms, phase_at_wake (enum), snooze_count, challenge_type, sleep_score (float), notes (text). SleepEpoch: id, session_id (FK), epoch_start_ms, movement_std (float), phase (enum). SoundEvent: id, session_id (FK), timestamp_ms, event_type (enum), amplitude_db. DAOs provide: insert, updateEnd, getByDateRange, get7DaySummary, getLast30DaysSummary. Sleep score computed on session end: efficiency = (LIGHT+DEEP epoch time) / (end_ms - start_ms) × 100, with penalty for > 2 snoozes and bonus for LIGHT-phase wake. Health Connect integration: writes SleepSessionRecord and SleepStageRecord on session end (READ_SLEEP_DATA + WRITE_SLEEP_DATA permissions).",
       "priority": "medium",
-      "status": "pending"
+      "status": "pending",
+      "rationale": "Health Connect is now the canonical Android health data platform (Google Fit REST API deprecated June 2025, 500+ apps integrated). Writing to Health Connect lets SleepWave data appear in Google Fit, Samsung Health, Fitbit, and other aggregators — a significant feature gap in the current market. Most alarm apps (including Alarmy) do not write to Health Connect. Sleep as Android supports Google Fit sync but not Health Connect natively. This gives SleepWave ecosystem integration that feels premium without requiring a subscription."
     },
     {
       "id": "F08",
-      "title": "Battery Optimization Exemption Onboarding",
-      "description": "First-launch onboarding flow that walks the user through granting battery-optimization exemption (ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS). Detects known OEM battery-saver apps (Samsung Device Care, Huawei Power Genie, Xiaomi MIUI, OnePlus, etc.) and shows tailored deep-link instructions for each manufacturer. Includes a health-check screen the user can reopen from Settings to re-verify permissions. Covers: SCHEDULE_EXACT_ALARM permission (Android 12+), POST_NOTIFICATIONS (Android 13+), and BODY_SENSORS if gyroscope is added later.",
-      "priority": "high",
-      "status": "pending"
+      "title": "Sleep History Dashboard (Hypnogram + Trends)",
+      "description": "Jetpack Compose screen with: (1) Nightly hypnogram — custom Canvas Composable, horizontal timeline bar, 30s epoch segments colored DEEP=dark blue / LIGHT=medium blue / AWAKE=orange / SNORE_EVENT=red dot overlay. Tap for epoch tooltip. (2) 7-day sleep duration bar chart with goal line (custom Canvas, no library dependency to keep APK lean). (3) Sleep score sparkline for 7 nights. (4) Summary cards: avg duration, avg score, sleep debt vs goal, snore event frequency. (5) Full history list: tap any night to expand detailed hypnogram. Data loaded via ViewModel + Room Flow queries. All local — no cloud sync in v1.",
+      "priority": "medium",
+      "status": "pending",
+      "rationale": "Sleep history visualization is a top premium-conversion driver: market research shows 55% of users pay for subscription apps, with advanced analytics being the primary stated reason. However, Sleep Cycle locks all statistics behind $39.99/year — a major complaint in Trustpilot reviews ('paid for yearly membership hoping for insights, uninstalling after 3 months'). SleepWave offers full local history for free. Avoiding third-party charting libraries (Vico, MPAndroidChart) keeps APK size under 10MB, a noted advantage in emerging-market App Store discovery."
     },
     {
       "id": "F09",
-      "title": "Alarm Configuration & Recurring Schedule",
-      "description": "Alarm creation/edit screen (Jetpack Compose) with: hard wake-up time, smart wake window size, repeat days (Mon–Sun toggles), alarm label, ringtone selector, volume, ramp duration, dismiss challenge type and difficulty, and max snooze count. Supports multiple simultaneous alarms. Alarms stored in Room DB; rescheduled on device reboot via BOOT_COMPLETED BroadcastReceiver.",
+      "title": "Battery Optimization Exemption Onboarding & Permission Health-Check",
+      "description": "Multi-step first-launch flow: Step 1 explains why exemption is needed with clear language. Step 2 fires ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS. Step 3 uses Build.MANUFACTURER detection to show OEM-specific deep-link instructions for Samsung (Device Care > Battery > App power management), Xiaomi/MIUI (Battery saver > No restrictions), Huawei (Power Genie whitelist), OnePlus (Battery optimization > Don't optimize), Oppo/Realme, Vivo. Step 4 verifies SCHEDULE_EXACT_ALARM or USE_EXACT_ALARM status. Step 5 requests POST_NOTIFICATIONS (Android 13+). Settings screen item 'Permission health check' re-runs all checks, shows green/red per permission with Fix buttons. Persistent banner shown in alarm list if any critical permission is missing.",
       "priority": "high",
-      "status": "pending"
+      "status": "pending",
+      "rationale": "OEM battery saver killing background processes is the single most common cause of missed alarms and failed sleep tracking across the Android ecosystem. Sleep as Android dedicates an entire documentation section ('Battery optimizations') to this problem and it appears in every forum thread about the app. Google Pixel phones have had recurring alarm bugs (XDA, 9to5Google, AndroidAuthority) partly due to system battery management killing the Clock app. On Samsung, Xiaomi, and Huawei devices, without explicit OEM whitelist entry, any background service (including ForegroundService) can be killed. The per-manufacturer deep-link approach is required — generic instructions fail users on ~60% of Android devices sold globally (Samsung + Xiaomi + Huawei combined share)."
     },
     {
       "id": "F10",
-      "title": "Bedtime Reminder & Sleep Goal",
-      "description": "Optional nightly reminder notification at a user-defined bedtime. Calculates and displays recommended bedtime based on target sleep duration (configurable, default 8 h) and the set alarm time. Notification is a simple heads-up with 'Start tracking' CTA that launches the tracking service directly. Weekly sleep goal progress shown on the dashboard (e.g. '5 of 7 nights ≥ 7 h').",
+      "title": "Alarm Configuration & Recurring Schedule",
+      "description": "Alarm creation/edit screen (Jetpack Compose) with: TimePicker for hard deadline, slider for wake window (5–90 min), weekday toggles (Mon–Sun), label TextField, ringtone selector, volume slider, ramp-duration slider (15–120 s), challenge type selector (None / Math / Shake / QR), difficulty selector, max snooze stepper (0–5), snooze duration (5 or 10 min), sound monitoring toggle. Multiple simultaneous alarms supported. AlarmEntity in Room with repeat_days_bitmask. Rescheduled on BOOT_COMPLETED via WorkManager. Handles DST transitions via Calendar API. On toggle, immediately reschedule or cancel AlarmManager alarm. Home screen LazyColumn showing alarm cards: time, label, active days, wake window badge, enabled switch, 'next alarm in X h Y m' subtitle. Swipe-to-delete with undo snackbar.",
+      "priority": "high",
+      "status": "pending",
+      "rationale": "Alarm reliability is the primary driver of both app adoption and abandonment. Google Clock's recurring alarm bugs (2021–2024, generating floods of 1-star Play Store reviews) pushed users to third-party apps. The failure pattern is always the same: OS kills the scheduling BroadcastReceiver or the app process after an update or reboot. Using WorkManager for BOOT_COMPLETED rescheduling (instead of a raw BroadcastReceiver starting a FGS) is the Android 15-safe approach, as Android 15 bans certain FGS types from BOOT_COMPLETED receivers. DST handling via Calendar API prevents the 'alarm fires 1 hour early/late after daylight saving' bug that generates consistent 1-star reviews industry-wide."
+    },
+    {
+      "id": "F11",
+      "title": "Bedtime Reminder & Sleep Goal Tracker",
+      "description": "Optional nightly bedtime reminder notification: fires at (alarm_deadline_time - target_sleep_hours), configurable target (6–10 h, default 8 h). Notification text: 'Wind down — alarm in Xh. Start tracking now.' with a direct CTA action that starts SleepTrackingService. Uses setAlarmClock() to ensure Doze delivery. Weekly sleep goal: user sets minimum sleep duration goal (e.g. '≥7 h for 5 nights/week'). Dashboard card shows: this-week progress bar (nights met), current streak, recommended bedtime for tonight. Tapping navigates to history. Goal data computed from Room 7-day aggregate query.",
       "priority": "low",
-      "status": "pending"
+      "status": "pending",
+      "rationale": "Bedtime reminders appear in every 'sleep hygiene' feature comparison but are rarely the deciding factor for app choice. They are low-effort to implement and increase daily active use / session initiation rates. The sleep goal streak mechanic (similar to fitness app 'streaks') increases retention — a key metric for subscription conversion in future versions. This feature requires no new permissions beyond what's already requested for alarm scheduling (POST_NOTIFICATIONS + USE_EXACT_ALARM)."
+    },
+    {
+      "id": "F12",
+      "title": "Wearable Integration (Optional Enhancement Layer)",
+      "description": "Optional Wear OS companion path: if the user has a Wear OS watch, SleepWave can use the Wearable Data Layer API to receive accelerometer + heart rate data from the watch during sleep, replacing the phone accelerometer as the movement source. Watch-side app posts SensorEvents to the phone via ChannelClient. Phone-side fuses watch motion + HR data to improve phase classification accuracy (HR < 60 bpm + low motion = deeper sleep likelihood). Degrades gracefully: if watch is not present or disconnected, falls back silently to phone accelerometer. UI shows a 'wearable active' indicator in the tracking notification. Phase 2 feature — core app works without it.",
+      "priority": "low",
+      "status": "pending",
+      "rationale": "Research shows wrist-worn accelerometer + PPG (heart rate) data doubles sleep classification accuracy vs accelerometer-only (Cohen's kappa increases from 0.28 to 0.56 in published studies). The best phone-only tracker (SleepRoutine using sonar) achieved F1=0.69 while pure accelerometer apps scored 0.26–0.40. Wearable enhancement addresses the honest scientific limitation of phone-only tracking. However, wearable integration must be optional: forcing users to own a Wear OS watch dramatically shrinks the addressable market. Building it as a graceful enhancement layer captures the smartwatch user segment (growing fast) without alienating the primary phone-only user base."
     }
   ],
   "tasks": [
     {
       "id": "T01",
       "feature_id": "F01",
-      "title": "Implement SleepTrackingService (ForegroundService)",
-      "description": "Create SleepTrackingService extending Service. Register ACCELEROMETER sensor with SensorManager at TYPE_LINEAR_ACCELERATION, 4 Hz rate, maxReportLatencyUs = 30_000_000 (30 s batching). Store raw samples in a circular in-memory buffer. Start/stop via Intent actions. Acquire PARTIAL_WAKE_LOCK for CPU-keep-alive. Post an ongoing notification with a 'Tracking sleep…' message and a Stop action.",
+      "title": "Implement SleepTrackingService as typed ForegroundService",
+      "description": "Create SleepTrackingService extending Service. Declare foregroundServiceType='health' in AndroidManifest.xml (required Android 14+; without this, startForeground() throws MissingForegroundServiceTypeException on API 34+). Request FOREGROUND_SERVICE_HEALTH permission. Register TYPE_LINEAR_ACCELERATION sensor at ~4 Hz (SENSOR_DELAY_NORMAL), maxReportLatencyUs=30_000_000. Store raw samples in a circular in-memory buffer (RingBuffer<FloatArray>, capacity=480 for 2-min window). Acquire PARTIAL_WAKE_LOCK tagged 'SleepWave::SleepTracking'. Start/stop via Intent actions START_TRACKING / STOP_TRACKING. Post ongoing notification (NotificationCompat, importance=LOW to avoid sound) with Stop action.",
       "status": "pending"
     },
     {
       "id": "T02",
       "feature_id": "F01",
-      "title": "Handle Doze mode with periodic AlarmManager wakeup",
-      "description": "Register a repeating setExactAndAllowWhileIdle alarm every 15 min to keep sensor flush alive during Doze. In the BroadcastReceiver re-verify service is running and flush any pending sensor batch. Re-schedule the next wakeup immediately on each receive to chain wakeups reliably.",
+      "title": "Doze-safe wakeup chain using setAlarmClock()",
+      "description": "Chain setAlarmClock() calls every 9 minutes to keep sensor flush alive during Doze (the practical minimum; setExactAndAllowWhileIdle() is capped at 1/15 min per app in Doze but setAlarmClock() is exempt from that cap). Declare USE_EXACT_ALARM in manifest (normal permission, auto-granted for alarm-category apps on Play Store — avoids the Android 14 SCHEDULE_EXACT_ALARM 'denied by default' problem). In the BroadcastReceiver: re-verify service is running (if killed by OEM, restart it), call SensorManager.flush(), then immediately schedule the next wakeup alarm. Register AlarmManager.ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED receiver to handle runtime revocation.",
       "status": "pending"
     },
     {
       "id": "T03",
       "feature_id": "F01",
-      "title": "Handle device reboot: reschedule active tracking sessions",
-      "description": "Register BOOT_COMPLETED and QUICKBOOT_POWERON receivers. On reboot, check Room DB for a session that was tracking when the device shut down (session with null end_time), mark it as interrupted, and surface a notification informing the user.",
+      "title": "BOOT_COMPLETED handling via WorkManager (Android 15 safe)",
+      "description": "Register RECEIVE_BOOT_COMPLETED permission. On BOOT_COMPLETED, do NOT start a ForegroundService directly (banned in Android 15 for 'health' and other types from BOOT_COMPLETED). Instead, enqueue a OneTimeWorkRequest via WorkManager with EXPEDITED priority. The Worker reschedules all active AlarmEntities from Room, and if a session was interrupted (SleepSession with null end_ms), marks it as INTERRUPTED and posts a notification. WorkManager handles the FGS internally under Android 15 constraints.",
       "status": "pending"
     },
     {
       "id": "T04",
-      "feature_id": "F02",
-      "title": "Implement epoch-based movement scorer",
-      "description": "Every 30 seconds compute the Euclidean norm of each accelerometer sample (sqrt(x²+y²+z²)), then calculate the standard deviation across the epoch. Map to phase: std < 0.04 g = DEEP, 0.04–0.15 g = LIGHT, > 0.15 g = AWAKE. Write the epoch result (timestamp, norm_std, phase enum) into Room via SleepEpochDao. Expose current phase as a StateFlow so the alarm scheduler can observe it.",
+      "feature_id": "F01",
+      "title": "OEM battery saver survival: test matrix and adaptive restart",
+      "description": "Build a SleepServiceHealthMonitor that posts a periodic heartbeat (shared pref timestamp updated every 5 min by the service). On each Doze-wakeup alarm, check if heartbeat is older than 10 min — if so, the service was killed by OEM. Restart it and log a 'service_restart' event to Room. Maintain a per-device restart-count counter; if restarts > 3 in one session, show a persistent notification: 'Background restrictions are interfering with tracking — tap to fix.' Deep-link to the OEM battery settings. Tested against: Samsung One UI 6+, MIUI 14, HyperOS, ColorOS 13+, Huawei EMUI 12+.",
       "status": "pending"
     },
     {
       "id": "T05",
       "feature_id": "F02",
-      "title": "Calibration pass and per-device threshold tuning",
-      "description": "Add a 2-minute calibration mode at session start that captures the phone's resting noise floor (phone still on mattress). Auto-adjust DEEP and AWAKE thresholds relative to the measured noise floor. Store calibration offsets per device in SharedPreferences so subsequent sessions start calibrated.",
+      "title": "Implement epoch-based movement scorer with calibration",
+      "description": "Every 30 seconds, dequeue the epoch's samples from the ring buffer. Compute Euclidean norm per sample: mag = sqrt(x²+y²+z²). Compute stddev across the epoch. Run a 2-minute calibration at session start to measure noise floor (phone resting on mattress) — store calibration_offset in SharedPreferences. Apply offset: effective_std = epoch_std - calibration_offset. Classify: < 0.04 g = DEEP, 0.04–0.15 g = LIGHT, > 0.15 g = AWAKE (thresholds relative to offset). Write SleepEpochEntity (session_id, epoch_start_ms, movement_std, phase) via SleepEpochDao. Emit current phase as StateFlow<SleepPhase> for alarm scheduler consumption.",
       "status": "pending"
     },
     {
       "id": "T06",
       "feature_id": "F02",
-      "title": "Sleep onset detection (time-to-fall-asleep)",
-      "description": "Detect sleep onset as the first continuous 10-min block of DEEP or LIGHT epochs after the session starts. Log sleep latency (time from session start to sleep onset) in SleepSession. Surface as a stat on the history screen ('Fell asleep in N min').",
+      "title": "Sleep onset and cycle boundary detection",
+      "description": "Implement SleepCycleAnalyzer that processes epoch StateFlow events. Sleep onset: first rolling 10-min window where ≥ 80% of epochs are LIGHT or DEEP. Log sleep_onset_ms to SleepSession. Sleep cycle boundary (for hypnogram visualization): detect transitions DEEP→LIGHT lasting ≥ 2 epochs as a potential cycle boundary. Log cycle count to session. Surface in UI: 'Fell asleep in N min', 'Completed N sleep cycles'. Also detect early morning AWAKE stretches > 10 min as likely actual awakening (flag for user review).",
       "status": "pending"
     },
     {
       "id": "T07",
-      "feature_id": "F03",
-      "title": "Implement smart alarm wake-window logic",
-      "description": "When the wake window opens (deadline minus window_minutes), begin observing the current phase StateFlow. On the first LIGHT epoch within the window, fire the alarm via AlarmManager.setAlarmClock() and cancel the hard-deadline alarm. If the window elapses without LIGHT detection, the hard-deadline alarm fires. Use AlarmManager.setAlarmClock() for both so the alarm icon appears in the status bar.",
+      "feature_id": "F02",
+      "title": "Movement data quality indicator",
+      "description": "Compute a per-session data quality score: (valid_epochs / total_epochs) * 100, where valid = epoch_std within expected range (not zero, not extreme). Surface quality score on history screen with tooltip explanation: 'Low quality may mean the phone moved during tracking.' Zero-movement epochs (std < noise_floor/10) flag potential phone displacement — show warning if > 20% of a session is zero-movement. This proactively addresses the core scientific limitation (phone movement != body movement) by surfacing when data may be unreliable.",
       "status": "pending"
     },
     {
       "id": "T08",
       "feature_id": "F03",
-      "title": "Alarm configuration persistence and rescheduling",
-      "description": "Persist alarms in Room DB (AlarmEntity: id, deadline_time, window_minutes, repeat_days_bitmask, enabled). On app launch and BOOT_COMPLETED, iterate enabled alarms and schedule the next occurrence with AlarmManager. Handle repeat: after firing, schedule the next week day immediately. Handle daylight-saving transitions via Calendar API rather than raw millisecond offsets.",
+      "title": "Implement smart alarm wake-window logic with setAlarmClock()",
+      "description": "When the wake window opens (deadline_ms - window_minutes * 60_000), begin observing the phase StateFlow in a coroutine scoped to the service. On the first LIGHT epoch within the window, call AlarmManager.setAlarmClock(alarmClockInfo, pendingIntent) with the fire time = now + 30s (one epoch), and cancel the hard-deadline alarm. If the window closes without LIGHT detection, the pre-scheduled hard-deadline setAlarmClock() fires as fallback. Use setAlarmClock() (not setExact) for both: it displays the alarm icon in the Android status bar and is not deferred by Doze. Log alarm_fire_ms and phase_at_wake to SleepSession.",
       "status": "pending"
     },
     {
       "id": "T09",
-      "feature_id": "F04",
-      "title": "Implement MediaPlayer alarm with volume ramp",
-      "description": "In AlarmPlayerService, open the user's selected ringtone URI via MediaPlayer. Set AudioAttributes to USAGE_ALARM, CONTENT_TYPE_SONIFICATION. Start at volume = max_volume * 0.1, then post a Runnable every 500 ms that increments volume by (max_volume * 0.9 / (ramp_seconds * 2)) until max is reached. Release MediaPlayer on dismiss/snooze.",
+      "feature_id": "F03",
+      "title": "Alarm persistence and rescheduling",
+      "description": "AlarmEntity schema: id (UUID), label (String), deadline_time_ms (Long), window_minutes (Int), repeat_days_bitmask (Int), enabled (Boolean), ringtone_uri (String), volume (Int), ramp_seconds (Int), challenge_type (enum), challenge_difficulty (enum), max_snooze_count (Int), snooze_duration_minutes (Int), sound_monitoring_enabled (Boolean). After each alarm fires: if repeat_days != 0, compute next occurrence using Calendar API (handles DST correctly). On enable/disable toggle: immediately call AlarmManager.cancel() or reschedule. Store last_scheduled_ms to detect stale alarms after DST transitions.",
       "status": "pending"
     },
     {
       "id": "T10",
       "feature_id": "F04",
-      "title": "Ringtone picker and audio focus handling",
-      "description": "Build a ringtone selection screen showing system alarm ringtones (RingtoneManager.TYPE_ALARM) plus a 'Pick from files' option (SAF file picker, persisted URI). Handle AudioFocus: request AUDIOFOCUS_GAIN, duck on AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK (incoming call), pause and resume on AUDIOFOCUS_LOSS / regain. Resume alarm if call ends within 2 min.",
+      "title": "Implement MediaPlayer alarm with volume ramp",
+      "description": "In AlarmPlayerService (FGS type='mediaPlayback'), open user's ringtone URI via MediaPlayer. Set AudioAttributes: usage=USAGE_ALARM, contentType=CONTENT_TYPE_SONIFICATION. On Android 15, ensure audio focus is requested only while FGS is active (platform requirement). Request AUDIOFOCUS_GAIN with OnAudioFocusChangeListener. Start at volume = max_volume * 0.1, then post a Handler Runnable every 500ms incrementing volume by (max_volume * 0.9 / (ramp_seconds * 2)) until max reached. On AUDIOFOCUS_LOSS (call): pause; on AUDIOFOCUS_GAIN regain: resume from paused position. Release MediaPlayer and abandon audio focus on dismiss or after 2-min call timeout.",
       "status": "pending"
     },
     {
       "id": "T11",
-      "feature_id": "F05",
-      "title": "Build full-screen alarm dismiss Activity",
-      "description": "Create AlarmDismissActivity with windowLayoutInDisplayCutoutMode=shortEdges, FLAG_SHOW_WHEN_LOCKED, FLAG_TURN_SCREEN_ON, FLAG_KEEP_SCREEN_ON. Show alarm label, current time, snooze button (with remaining count badge), and dismiss button / challenge widget. Activity is started by AlarmPlayerService via a PendingIntent. Ensure it appears over the keyguard on Android 8.1+ using KeyguardManager.",
+      "feature_id": "F04",
+      "title": "Ringtone picker with bundled gentle wake tones",
+      "description": "Ringtone selection screen: list system alarm ringtones via RingtoneManager.TYPE_ALARM, add 'Pick from files' option (SAF Intent.ACTION_OPEN_DOCUMENT, persist URI with FLAG_GRANT_READ_URI_PERMISSION + FLAG_GRANT_PERSISTABLE_URI_PERMISSION). Bundle 3 built-in gentle wake tones: a melodic chime (~500 Hz fundamental), nature sounds (birds), and a soft piano sequence. Research shows melodic 500 Hz tones reduce sleep inertia vs abrupt buzzers (2020 RMIT study). Play preview button. Store selected ringtone URI in AlarmEntity.",
       "status": "pending"
     },
     {
       "id": "T12",
       "feature_id": "F05",
-      "title": "Implement dismiss challenge modules (math, shake, QR)",
-      "description": "Math challenge: generate random arithmetic problem at configured difficulty (easy = single digit add/sub, hard = 2-digit multiply). Shake challenge: use accelerometer magnitude peaks to count shakes, show progress ring. QR challenge: open CameraX preview, decode QR with ML Kit Barcode Scanning, compare against stored code. Each challenge is a Composable injected into AlarmDismissActivity based on user setting.",
+      "title": "Build full-screen alarm dismiss Activity (lock screen safe)",
+      "description": "Create AlarmDismissActivity. Set window flags: FLAG_SHOW_WHEN_LOCKED, FLAG_TURN_SCREEN_ON, FLAG_KEEP_SCREEN_ON. Use setShowWhenLocked(true) + setTurnScreenOn(true) API (Android 8.1+ replacements for deprecated window flags). Call KeyguardManager.requestDismissKeyguard() for full unlock on dismiss. windowLayoutInDisplayCutoutMode=shortEdges. Show: alarm label, large time display, snooze button (with remaining count badge, disappears at 0), and challenge widget area. Challenge widget injected as a Composable based on alarm.challenge_type. Start from AlarmPlayerService via PendingIntent.getActivity() with FLAG_IMMUTABLE.",
       "status": "pending"
     },
     {
       "id": "T13",
-      "feature_id": "F06",
-      "title": "Define Room DB schema: SleepSession and SleepEpoch",
-      "description": "SleepSession: id (UUID), alarm_id (FK), start_ms, end_ms, sleep_onset_ms, alarm_fire_ms, phase_at_wake (enum), snooze_count, challenge_type, sleep_score (float). SleepEpoch: id, session_id (FK), epoch_start_ms, movement_std (float), phase (enum). Write SleepSessionDao (insert, updateEnd, getByDateRange, get7DaySummary) and SleepEpochDao (insertAll, getBySession). Use TypeConverters for enums.",
+      "feature_id": "F05",
+      "title": "Implement dismiss challenge modules (math, shake, QR)",
+      "description": "Three independent Composable challenge modules: (1) MathChallenge: generate arithmetic problem, easy=single digit add/sub, medium=double digit, hard=multiplication. User types answer via numpad. (2) ShakeChallenge: register accelerometer in Activity, count magnitude peaks > 2.5g as one shake, show progress ring towards target count (configurable 5–30). (3) QrChallenge: CameraX preview + ML Kit BarcodeScanning API, compare decoded value against pre-registered code (stored in Room as alarm_qr_code field). Add QR code setup flow in alarm edit screen: user scans their 'home base' QR (e.g. bathroom cabinet label) to register it.",
       "status": "pending"
     },
     {
       "id": "T14",
       "feature_id": "F06",
-      "title": "Compute and persist nightly sleep score",
-      "description": "On session end, calculate: sleep_efficiency = (total DEEP + LIGHT epoch time) / (end_ms - start_ms) * 100. Weighted score that also penalizes > 2 snoozes and rewards waking in LIGHT phase. Write computed score back to SleepSession. Expose getSleepScore() from DAO for display on history screen.",
+      "title": "Implement AudioRecord-based snore/noise detector",
+      "description": "SoundMonitoringService (runs as part of SleepTrackingService when enabled, not separate). Use AudioRecord with VOICE_RECOGNITION source, 16kHz, 16-bit PCM, mono. Read 5-second frames. Compute RMS energy and zero-crossing rate per frame. Snore heuristic: ZCR < 50/s AND RMS > -40dBFS AND duration > 2s = SNORE event. Loud noise: RMS > -25dBFS = NOISE event. Write SoundEventEntity to Room. Do NOT record continuous audio — only flag events and store metadata (timestamp, type, amplitude_db). This avoids privacy concerns about continuous recording and reduces storage by 99%. Show permission rationale: 'Only detects sound events, never records continuous audio.'",
       "status": "pending"
     },
     {
       "id": "T15",
-      "feature_id": "F07",
-      "title": "Build nightly hypnogram Composable",
-      "description": "Custom Canvas-based Composable that draws a horizontal timeline bar. Each 30-second epoch is a colored segment: DEEP = dark blue, LIGHT = medium blue, AWAKE = orange. X-axis is time (session start to end), Y-axis label shows phase depth. Tap/drag shows a tooltip with time and phase. Animate entry with a left-to-right reveal.",
+      "feature_id": "F06",
+      "title": "Sound event overlay on hypnogram and summary stats",
+      "description": "Extend hypnogram Composable to overlay SoundEvent markers as colored dots above the timeline bar: SNORE=red dot, NOISE=yellow dot, TALK=orange dot. Tap a dot to show tooltip: event type, timestamp, amplitude. Session summary card: 'Snoring detected: N events, longest X min'. Week summary: snore event frequency trend (bar chart, one bar per night). Export all session data as CSV (raw epoch + sound events) via share intent for users who want to take data to a doctor. This addresses Sleep Cycle's Trustpilot complaints about data being locked in the app.",
       "status": "pending"
     },
     {
       "id": "T16",
       "feature_id": "F07",
-      "title": "Build 7-day summary charts and stats cards",
-      "description": "Compose screen with: (1) vertical bar chart of nightly sleep duration (7 bars), goal line drawn at user's target. (2) Sleep score sparkline for last 7 nights. (3) Summary cards: avg duration, avg score, sleep debt vs goal, longest streak of meeting goal. Use Vico or a custom Canvas chart. Load data via ViewModel + Room Flow queries.",
+      "title": "Define Room DB schema: full entity set",
+      "description": "SleepSession: id (UUID PK), alarm_id (FK nullable), start_ms, end_ms, sleep_onset_ms, alarm_fire_ms, phase_at_wake (PhaseEnum), snooze_count, challenge_type (ChallengeEnum), sleep_score (Float), data_quality_score (Float), status (SessionStatusEnum: ACTIVE/COMPLETE/INTERRUPTED), notes (String). SleepEpoch: id (Long autoincrement PK), session_id (FK), epoch_start_ms, movement_std, phase. SoundEvent: id (Long PK), session_id (FK), timestamp_ms, event_type (SoundEventEnum), amplitude_db. AlarmEntity: id (UUID PK), all config fields. TypeConverters for all enums, UUID. Indices on session_id FKs. Migration strategy: use Room auto-migration for schema v1→v2+.",
       "status": "pending"
     },
     {
       "id": "T17",
-      "feature_id": "F08",
-      "title": "Implement battery optimization permission onboarding screen",
-      "description": "Multi-step onboarding Composable flow: step 1 explains why the app needs battery exemption, step 2 fires ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, step 3 checks for OEM battery-saver (detect manufacturer via Build.MANUFACTURER, show deep-link to OEM settings with per-brand instructions for Samsung / Xiaomi / Huawei / OnePlus / Oppo). Mark onboarding complete in SharedPreferences. Skip if already exempt.",
+      "feature_id": "F07",
+      "title": "Health Connect integration: write sleep sessions",
+      "description": "Add Health Connect dependency (androidx.health.connect:connect-client). Declare READ_SLEEP_DATA + WRITE_SLEEP_DATA permissions in manifest (Health Connect permission group). On session completion, map SleepSession + SleepEpoch data to SleepSessionRecord + list<SleepSessionRecord.Stage> and insert via HealthConnectClient.insertRecords(). Map phases: DEEP→STAGE_TYPE_SLEEPING_DEEP, LIGHT→STAGE_TYPE_SLEEPING_LIGHT, AWAKE→STAGE_TYPE_AWAKE. Show 'Sync to Health Connect' toggle in Settings — opt-in, not automatic. Check HealthConnectClient.getSdkStatus() before any call; handle SDK_UNAVAILABLE gracefully (pre-Android 9 devices).",
       "status": "pending"
     },
     {
       "id": "T18",
       "feature_id": "F08",
-      "title": "Permission health-check screen and runtime re-verification",
-      "description": "Settings screen item 'Check permissions' that re-runs all permission checks: battery exemption, SCHEDULE_EXACT_ALARM (Android 12+), POST_NOTIFICATIONS (Android 13+), and optionally RECORD_AUDIO (for future sound detection). Show green/red status per permission with a 'Fix' button that deep-links to the relevant system settings page. Re-check on every app foreground resume and show a persistent warning banner in the alarm list if any critical permission is missing.",
+      "title": "Nightly hypnogram Canvas Composable",
+      "description": "Custom Canvas Composable HypnogramChart(epochs: List<SleepEpoch>, soundEvents: List<SoundEvent>, modifier: Modifier). Draw horizontal timeline: X = time axis (session start to end), Y = phase depth (AWAKE top, DEEP bottom). Each epoch segment filled with phase color. Sound event dots overlaid above the bar. Time-axis labels at session start, alarm time, session end. Tap/drag: calculate epoch under pointer, show tooltip Composable with time + phase. Entry animation: left-to-right reveal using animateFloatAsState with 800ms easing. Accessible: contentDescription lists phase transitions.",
       "status": "pending"
     },
     {
       "id": "T19",
-      "feature_id": "F09",
-      "title": "Build alarm creation/edit screen (Compose)",
-      "description": "Jetpack Compose screen with: TimePicker for deadline, slider or dropdown for wake window (5–90 min), weekday toggle row, label TextField, ringtone selector (navigates to F04 picker), volume slider, ramp-duration slider, challenge type selector (None/Math/Shake/QR), difficulty selector (conditional), max snooze stepper. Save to Room on confirm. Validate that window does not exceed time-to-midnight.",
+      "feature_id": "F08",
+      "title": "7-day summary charts and stats cards (custom Canvas)",
+      "description": "SummaryScreen Composable. No third-party chart library — custom Canvas to keep APK lean. WeeklyBarChart: 7 vertical bars (Mon–Sun), height proportional to sleep duration, goal line drawn at user target. Tap bar = navigate to that night's detail. SleepScoreSparkline: line chart, last 7 scores, trend indicator (arrow). Stats cards row: avg duration (formatted Xh Ym), avg score, sleep debt vs goal (computed as target_hours * days - actual_hours_sum), longest streak. All queries via SleepStatsViewModel + Flow<SleepWeekSummary> from Room DAO. LoadingState handling with shimmer placeholder.",
       "status": "pending"
     },
     {
       "id": "T20",
       "feature_id": "F09",
-      "title": "Alarm list home screen with enable/disable toggle",
-      "description": "Home screen Composable showing a LazyColumn of AlarmCards. Each card shows: time, label, active days, wake window badge, enabled switch. Swipe-to-delete with undo snackbar. FAB to create a new alarm. On toggle, reschedule or cancel the AlarmManager alarm immediately. Show a 'next alarm in X h Y min' subtitle under the next upcoming alarm.",
+      "title": "Implement OEM-aware battery optimization onboarding",
+      "description": "BatteryOptimizationHelper.kt: detect Build.MANUFACTURER (lowercase). Map to OEM-specific deep-link Intent: Samsung → ACTION_SAMSUNG_BATTERY = 'com.samsung.android.sm.battery.action.BATTERY', Xiaomi → 'miui.intent.action.POWER_HIDE_MODE_APP_LIST', Huawei → 'huawei.intent.action.HSM_BOOTAPP_MGR', OnePlus/Oppo → Settings.ACTION_APPLICATION_DETAILS_SETTINGS. Fallback: ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS for all others. OnboardingViewModel tracks: battery_exempt (boolean), exact_alarm_permission (boolean), notification_permission (boolean). Show progress stepper UI. Store onboarding_complete in DataStore. Re-entrant: skip completed steps.",
       "status": "pending"
     },
     {
       "id": "T21",
-      "feature_id": "F10",
-      "title": "Implement bedtime reminder notification",
-      "description": "When a user enables the bedtime reminder for an alarm, schedule a daily notification at (alarm_deadline - target_sleep_hours). Notification text: 'Time to wind down — alarm in 8 h'. Include a 'Start tracking now' action that starts SleepTrackingService directly. Use AlarmManager.setAlarmClock() so it fires even in Doze. Cancel and reschedule on alarm edit.",
+      "feature_id": "F09",
+      "title": "Permission health-check screen with runtime re-verification",
+      "description": "PermissionHealthScreen Composable in Settings. On every app foreground resume (onResume), re-check: (1) powerManager.isIgnoringBatteryOptimizations(packageName), (2) alarmManager.canScheduleExactAlarms(), (3) NotificationManagerCompat.areNotificationsEnabled(). For each: show green checkmark if OK, red warning with 'Fix' button if not. Fix button deep-links to the appropriate system settings (per OEM for battery, ACTION_REQUEST_SCHEDULE_EXACT_ALARM for alarms, ACTION_APP_NOTIFICATION_SETTINGS for notifications). Show a dismissible persistent BannerCard on the alarm list home screen if any critical permission (battery or exact alarm) is missing.",
       "status": "pending"
     },
     {
       "id": "T22",
       "feature_id": "F10",
-      "title": "Sleep goal progress widget on dashboard",
-      "description": "Dashboard card showing: this week's goal (e.g. '≥ 7 h for 5 nights'), progress bar with nights-met count, current streak. Read from Room 7-day aggregate query. Also show recommended bedtime for today ('Go to bed by 10:30 PM for 8 h sleep'). Tap card navigates to full history screen.",
+      "title": "Build alarm creation/edit screen (Compose)",
+      "description": "AlarmEditScreen Composable. Fields: TimePickerDialog for deadline time, WakeWindowSlider (5–90 min, step 5, labeled 'Smart wake window'), WeekdayPicker (7 toggle chips Mon–Sun), LabelTextField, RingtoneSelector (navigate to picker), VolumeSlider (0–100), RampDurationSlider (15–120 s), ChallengeTypeSelector (segmented control: None/Math/Shake/QR), conditional DifficultySelector and QrSetupButton, MaxSnoozeCountStepper (0–5), SnoozeDurationToggle (5/10 min), SoundMonitoringSwitch. Save validates: wake window < time until deadline. Bottom sheet form with top-bar Save and Cancel buttons. Uses ModalBottomSheetLayout for phone, full screen for tablet.",
+      "status": "pending"
+    },
+    {
+      "id": "T23",
+      "feature_id": "F10",
+      "title": "Alarm list home screen",
+      "description": "HomeScreen Composable. LazyColumn of AlarmCards: time (large), label, weekday chips, wake-window badge ('↑ 30 min'), sound monitoring indicator, enabled Switch. Swipe-to-delete (SwipeToDismiss) with UndoSnackbar (5s undo window). FAB (+ icon) navigates to AlarmEditScreen. 'Next alarm' banner at top: 'Next: 7:00 AM, in 6h 32m'. Empty state illustration + 'Tap + to add your first alarm'. AlarmListViewModel observes Room AlarmDao as Flow<List<AlarmEntity>>, maps to AlarmCardUiState. On switch toggle: ViewModel calls AlarmScheduler.reschedule(alarm) or AlarmScheduler.cancel(alarm) — imperative scheduling kept in one class.",
+      "status": "pending"
+    },
+    {
+      "id": "T24",
+      "feature_id": "F11",
+      "title": "Implement bedtime reminder notification",
+      "description": "BedtimeReminderScheduler.kt: when alarm has bedtime_reminder enabled, schedule a daily setAlarmClock() at (alarm_deadline_time - target_sleep_hours). Notification channel: IMPORTANCE_DEFAULT, 'Bedtime Reminders'. Notification content: 'Time to wind down — alarm in Xh Ym' with 'Start tracking' action Intent that starts SleepTrackingService. Cancel and reschedule on any alarm edit. On Android 13+, check POST_NOTIFICATIONS permission before posting. Use setAlarmClock() not setExact() to survive Doze.",
+      "status": "pending"
+    },
+    {
+      "id": "T25",
+      "feature_id": "F11",
+      "title": "Sleep goal progress dashboard card",
+      "description": "SleepGoalCard Composable on HomeScreen (below alarm list). Reads from SleepGoalViewModel: target_nights_per_week (default 5), target_hours_per_night (default 7), actual_nights_this_week (sessions with duration >= target), current_streak_days. Shows: progress bar 'X of Y nights this week', streak badge, recommended bedtime for tonight calculated as (next_alarm_deadline - target_hours). Tap navigates to SummaryScreen. Uses Room 7-day aggregate query (Flow-backed, updates automatically when sessions are written). Goal settings: two sliders in a Settings screen, persisted in DataStore.",
+      "status": "pending"
+    },
+    {
+      "id": "T26",
+      "feature_id": "F12",
+      "title": "Wear OS companion app scaffold",
+      "description": "Create :wear module in the project. WearSleepTrackingService on watch side: register accelerometer + heart rate sensor (TYPE_HEART_RATE if BODY_SENSORS permission granted). Send batched sensor data every 30s to phone via Wearable.ChannelClient.sendMessage(). Phone-side WearDataListenerService receives ChannelMessage, parses sensor arrays, feeds into SleepPhaseClassifier alongside or in place of phone accelerometer. UI: wear-side Complication showing next alarm time (updates via DataClient). Phone settings: 'Use wearable for tracking' toggle — disabled if no watch paired. Degrades gracefully to phone-only if channel disconnects mid-session.",
+      "status": "pending"
+    },
+    {
+      "id": "T27",
+      "feature_id": "F12",
+      "title": "Fused phase classification with HR data",
+      "description": "Extend SleepPhaseClassifier to accept optional heartRate: Float? parameter alongside movement_std. If HR available: reclassify borderline LIGHT/DEEP epochs — HR < 55 bpm AND movement_std < 0.08 = promote to DEEP; HR > 70 bpm AND movement_std > 0.10 = promote to AWAKE. This fusion rule is derived from the research finding that adding HRV features doubles classification accuracy (Cohen's kappa 0.28 → 0.56). When wearable is active, show 'Enhanced tracking' badge in notification. Log data_source (PHONE_ONLY / WATCH_FUSED) per session for user transparency.",
       "status": "pending"
     }
   ],
@@ -238,5 +299,30 @@
   "code": [],
   "test_results": [],
   "bugs": [],
-  "decisions": []
+  "decisions": [
+    {
+      "id": "D01",
+      "date": "2026-04-09",
+      "decision": "Use USE_EXACT_ALARM (normal permission) instead of SCHEDULE_EXACT_ALARM (runtime permission denied by default on Android 14+)",
+      "rationale": "Android 14 change: SCHEDULE_EXACT_ALARM is denied by default for new installs targeting API 33+. USE_EXACT_ALARM is auto-granted on install for apps in the alarm/calendar category and avoids the user-permission friction entirely. Play Store policy requires apps using USE_EXACT_ALARM to qualify as alarm/calendar apps."
+    },
+    {
+      "id": "D02",
+      "date": "2026-04-09",
+      "decision": "Use WorkManager for BOOT_COMPLETED rescheduling instead of direct ForegroundService start",
+      "rationale": "Android 15 prohibits starting 'health', 'camera', 'mediaPlayback', and other FGS types directly from BOOT_COMPLETED broadcast receivers (throws ForegroundServiceStartNotAllowedException). WorkManager is the Android-sanctioned alternative and handles this constraint automatically."
+    },
+    {
+      "id": "D03",
+      "date": "2026-04-09",
+      "decision": "Be transparent about phone accelerometer limitations in UI",
+      "rationale": "Research: phone-only accelerometer apps score F1=0.26–0.40 for sleep staging vs polysomnography; the best achieves 0.69 only via sonar. Pure actigraphy predicts 59% deep sleep vs 10.8% actual (PMC 2023). Sleep Cycle's top complaint is 'cannot detect if I'm asleep.' Honest labeling ('movement-based estimate') builds user trust and avoids app store backlash."
+    },
+    {
+      "id": "D04",
+      "date": "2026-04-09",
+      "decision": "Core smart alarm and sleep history are fully free; no subscription in v1",
+      "rationale": "Sleep as Android costs $84.99 lifetime (as of 2026); Sleep Cycle $39.99/year. Both lock smart alarm or full statistics behind paywall. This is the #1 cited abandonment reason in reviews. SleepWave differentiates on being fully free for core functionality, planning future premium on cloud backup / multi-device sync / advanced AI analysis only."
+    }
+  ]
 }

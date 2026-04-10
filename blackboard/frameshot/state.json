@@ -9,283 +9,295 @@
     {
       "id": "F01",
       "title": "Menu Bar App + Global Hotkeys",
-      "description": "NSStatusItem menu bar icon with a dropdown for all capture modes. CGEventTap-based global hotkeys (configurable) for region, window, fullscreen, and repeat-last capture. App must not appear in Dock. Hotkeys must work even when another app is frontmost.",
+      "description": "NSStatusItem menu bar icon with a dropdown for all capture modes. CGEventTap-based global hotkeys (configurable) for region, window, fullscreen, and repeat-last capture. App must not appear in Dock (LSUIElement=YES). Hotkeys must work even when another app is frontmost. Requires Input Monitoring permission via CGRequestListenEventAccess() — separate from Screen Recording TCC. CGEventTap is sandbox-compatible since macOS 10.15 and works through Sonoma/Sequoia without new restrictions, but the Input Monitoring prompt must be handled gracefully with a Settings deeplink.",
       "priority": "high",
-      "status": "pending"
+      "status": "pending",
+      "rationale": "Global hotkeys are the #1 reason users install dedicated screenshot apps over the built-in macOS tool. User research shows the daily workflow is: trigger hotkey → annotate → copy. Any friction in hotkey reliability causes churn. CGEventTap requires Input Monitoring permission — separate from Screen Recording — and both must be requested clearly at first launch. macOS Sequoia introduced no new CGEventTap-specific restrictions according to 2024 Apple Developer Forum threads, but the Input Monitoring TCC prompt is new-user friction that must be handled with a polished onboarding sheet."
     },
     {
       "id": "F02",
       "title": "Region, Window, and Fullscreen Capture",
-      "description": "Three capture modes powered by ScreenCaptureKit: (1) freehand crosshair region selection with live magnifier showing pixel coordinates, (2) window picker that highlights hovered window with shadow-aware boundaries using SCShareableContent, (3) full-screen capture of any display. Must request Screen Recording permission via CGRequestScreenCaptureAccess() at first launch. Sign with stable Apple Development certificate so TCC permission persists across rebuilds.",
+      "description": "Three capture modes powered by ScreenCaptureKit: (1) freehand crosshair region selection with live magnifier and pixel coordinates, (2) window picker highlighting hovered window with shadow-aware SCWindow boundaries, (3) full-screen capture of any display. Use SCScreenshotManager.captureImage(contentFilter:configuration:completionHandler:) (macOS 14+) with fallback to SCStream for macOS 13. Critical: sign with stable Developer ID certificate — ad-hoc signing causes TCC hash to change on every build, resetting Screen Recording permission each rebuild. On macOS Sequoia 15.x, Apple will re-prompt users monthly for Screen Recording approval; FrameShot must handle this gracefully by detecting denied state and showing a banner, NOT crashing or hanging on SCShareableContent enumeration timeout (3–10s known bug). CGWindowListCreateImage is deprecated in macOS 14; use SCScreenshotManager exclusively.",
       "priority": "high",
-      "status": "pending"
+      "status": "pending",
+      "rationale": "macOS Sequoia introduced a mandatory monthly Screen Recording re-authorization prompt affecting all third-party screenshot tools (CleanShot X, Shottr, Discord, Zoom, etc.). Apple changed from weekly to monthly in Sequoia beta 6, but there is no permanent grant available. Research found a TCC plist workaround (ScreenCaptureApprovals.plist) but this requires Full Disk Access — too invasive for user-facing automation. FrameShot must handle the monthly denial state gracefully. Additionally, CGPreflightScreenCaptureAccess() was deprecated in macOS 15.1, replaced by ScreenCaptureKit APIs. The permission TCC hash churn bug (permissions reset on every Xcode build with ad-hoc signing) is the #1 developer pain point in ScreenCaptureKit developer forums."
     },
     {
       "id": "F03",
-      "title": "Annotation Canvas",
-      "description": "Post-capture annotation editor built on NSPanel + Core Graphics. Core tools power users rely on daily: arrow/line, rectangle, circle/ellipse, freehand pen, text label, numbered step counter, and highlight. Color and stroke-weight pickers per tool. Tool state persists between sessions. Supports multi-select and move. This is the feature that differentiates from the macOS built-in tool.",
+      "title": "Annotation Canvas — Core Tools",
+      "description": "Post-capture annotation editor built on NSPanel + Core Graphics. Core tools validated by user research as the 90% daily-use set: arrow/line (with multiple arrowhead styles per CleanShot X), rectangle, circle/ellipse, freehand pen, text label, numbered step counter, and highlight. Color and stroke-weight pickers per tool. Tool state persists between sessions via UserDefaults. Multi-select with rubber-band, move and delete. UndoManager-based Command+Z/Shift+Z stack. Render via drawRect using CGContext; maintain annotation model array for serialization. Keyboard shortcuts per tool: V=select, A=arrow, R=rect, E=ellipse, T=text, B=blur, H=highlight.",
       "priority": "high",
-      "status": "pending"
+      "status": "pending",
+      "rationale": "Annotation is the #1 differentiator over the macOS built-in screenshot tool. Real user data from CleanShot X AppSumo reviews shows OCR, annotation, and screen recording are the three most-cited value drivers. Toolfolio comparison confirms: CleanShot X's seven text styles and multiple arrow styles are paid features users specifically call out. Developers and QA testers use arrow+rectangle+text+step-number as their daily set — these four tools alone cover ~80% of bug report and documentation screenshots. CleanShot X charges for advanced annotation; FrameShot should include a complete set in its base one-time price to differentiate."
     },
     {
       "id": "F04",
       "title": "Blur / Pixelate Redaction Tool",
-      "description": "Freehand or rectangular blur/pixelate regions for hiding sensitive data (passwords, emails, PII). Two modes: Gaussian blur and mosaic pixelate. Adjustable intensity slider. Redaction is baked into the exported image, not a removable layer. Addresses a top daily-use need for power users and developers sharing screenshots publicly.",
+      "description": "Freehand or rectangular blur/pixelate regions for hiding sensitive data. Two modes: Gaussian blur (CIGaussianBlur via Core Image) and mosaic pixelate (CIPixellate). Adjustable intensity slider (1–20). Freehand mask built from CGPath brush strokes, applied as a CIImage mask over the blurred region — useful for faces and non-rectangular content. Redaction is baked into the exported PNG at flatten time; it is NOT a removable layer in the exported image. In-editor it remains editable as an annotation layer until export.",
       "priority": "high",
-      "status": "pending"
+      "status": "pending",
+      "rationale": "Blur/redaction is one of the top three daily-use tools for developers and content creators sharing screenshots publicly. Passwords, API keys, emails, and PII appear in developer screenshots constantly. Xnapper touts auto-redaction of sensitive information as a killer feature. CleanShot X includes blur effects. Shottr includes blur as a core annotation tool. This is table-stakes for any professional screenshot tool in 2025. AI-assisted auto-detection of sensitive regions is an emerging trend (Xnapper review mentions it) — FrameShot can add heuristic detection (regex for emails/API keys in OCR output) as a future enhancement."
     },
     {
       "id": "F05",
-      "title": "Copy to Clipboard, Save to File, and Quick Share",
-      "description": "After capture+annotation: one-click copy to NSPasteboard (PNG), save to configurable folder (default ~/Desktop or ~/Screenshots), and optional drag-to-share. Auto-copy to clipboard on capture is a configurable default. Save format options: PNG (lossless default), JPEG (with quality slider). File naming: configurable pattern with date/time/sequence tokens.",
+      "title": "Copy to Clipboard, Save to File, Quick Share",
+      "description": "After capture+annotation: one-click copy to NSPasteboard (PNG data type), save to configurable folder (default ~/Screenshots), and drag-to-share via NSDraggingSource. Auto-copy to clipboard on capture is the default (configurable off). Save format: PNG (lossless, default), JPEG (with quality slider 60–100%). File naming: configurable pattern with date/time/sequence tokens (e.g. FrameShot_2026-04-09_14-32-01.png). A transient HUD overlay confirms copy/save action. Quick Access Overlay (like CleanShot X's) appears after each capture with buttons: Copy, Save, Annotate, Pin, Beautify — this overlay is the primary action surface and drives daily UX speed.",
       "priority": "high",
-      "status": "pending"
+      "status": "pending",
+      "rationale": "CleanShot X's Quick Access Overlay is explicitly called out as a top UX feature in reviews — it surfaces the six most common post-capture actions without requiring the user to open the app. Users who screenshot frequently (developers, designers) want zero-click copy to clipboard as the default; the extra step of finding the file in Finder kills workflow momentum. ScreenSnap Pro's review notes configurable auto-copy as a differentiator. PNG is the right default (lossless, transparency support for window captures with shadows); JPEG option covers users sharing to Jira/Slack where file size matters."
     },
     {
       "id": "F06",
       "title": "OCR — Extract Text from Screenshots",
-      "description": "One-click OCR using Apple Vision framework (VNRecognizeTextRequest) to extract text from any screenshot region. Result copied to clipboard automatically. Also supports QR code detection. No cloud dependency — fully local, privacy-preserving. Shottr's OCR is praised as faster and more accurate than CleanShot X; FrameShot should match or beat it by running Vision on a background queue and showing inline results.",
+      "description": "One-click OCR using Apple Vision framework (VNRecognizeTextRequest, revision 3, accurate mode) to extract text from any screenshot region. Run on a background DispatchQueue to avoid blocking UI. Result displayed inline in a copyable popover and auto-copied to clipboard. Bounding-box overlays drawn over each recognized text block. Also run VNDetectBarcodesRequest for QR code detection (critical for mobile developers testing deep links). Support sub-region selection: user can drag a rect on the screenshot to scope OCR to a specific area. Fully local — no cloud dependency, no data leaves the device.",
       "priority": "high",
-      "status": "pending"
+      "status": "pending",
+      "rationale": "OCR is one of the most-cited value drivers for CleanShot X (AppSumo reviews) and Shottr's #1 praised feature. HowToGeek lists OCR as a primary reason developers choose Shottr over the built-in macOS tool. Apple Vision (VNRecognizeTextRequest) is faster and more accurate than any third-party alternative for on-device use, has no cloud dependency (critical for enterprise users with sensitive data), and requires zero external SDK. Shottr's QR code detection via VNDetectBarcodesRequest is praised by mobile developers testing iOS deep links — this niche is underserved by CleanShot X. Running Vision on a background queue with inline bounding-box feedback matches Shottr's praised UX."
     },
     {
       "id": "F07",
       "title": "Scrolling Capture (Auto-scroll + Stitch)",
-      "description": "Capture content taller than the visible viewport by auto-scrolling and stitching frames. Works on web pages, documents, and chat logs. Uses ScreenCaptureKit stream + CGEventPost scroll simulation. Key technical challenge: detecting scroll end, deduplicating overlapping frames, aligning stitched seams. CleanShot X's scrolling capture is rated best-in-class; FrameShot must handle sticky headers and lazy-loaded content.",
+      "description": "Capture content taller than the visible viewport by auto-scrolling the target window and stitching frames. Implementation: start SCStream on the target SCWindow; post CGEventPost synthetic CGScrollWheel events in increments; capture frames at each position; detect scroll-end by comparing consecutive frames (pixel diff below threshold for 3 frames); stitch with overlap alignment. Key technical challenges: (1) deduplication of overlapping frame strips using SSIM or pixel correlation, (2) sticky/fixed-position element masking — detect repeated pixel strip at top/bottom of each frame, (3) lazy-loaded content: configurable inter-frame delay (default 200ms). Escape key cancels mid-capture. Known limitation: SCK sub-window capture on secondary displays may miss right-click menus (undocumented SCK bug — document this as known limitation).",
       "priority": "medium",
-      "status": "pending"
+      "status": "pending",
+      "rationale": "Scrolling capture is CleanShot X's best-in-class differentiator, rated as the most-used advanced feature by power users in forum discussions. Shottr includes scrolling capture but struggles with dynamic JavaScript-loaded pages (skipped portions, duplicated segments per AnyMP4 review). ScreenSage Pro's architecture blog reveals that SCK's sub-window recording on secondary displays is a documented undocumented limitation. The sticky-header problem (navigation bars appearing in every frame) is the most common complaint about all current scrolling capture implementations. FrameShot must handle sticky headers and lazy-load delays to beat Shottr's implementation quality."
     },
     {
       "id": "F08",
       "title": "Pin Screenshot to Screen (Floating Panel)",
-      "description": "Float an annotated screenshot as a always-on-top NSPanel (window level NSFloatingWindowLevel) for reference while working in other apps. Supports resize, opacity slider, and click-through mode. Multiple pins simultaneously. Dismiss with Escape or menu. Heavily requested by CleanShot X users and one of its most-praised features; Shottr lacks this entirely.",
+      "description": "Float an annotated screenshot as an always-on-top NSPanel (NSFloatingWindowLevel) for reference while working in other apps. Features: drag to reposition, corner-drag to resize (maintain aspect ratio with Shift), opacity slider (via NSWindow.alphaValue, 20–100%), click-through mode toggle (NSWindow.ignoresMouseEvents), and double-click to reopen in annotation editor. Multiple simultaneous pins supported — each tracked in an array. Dismiss with Escape or context menu. Optional: persist active pins across restarts by serializing panel frame + image path to UserDefaults. Menu bar dropdown shows thumbnail list of active pins.",
       "priority": "medium",
-      "status": "pending"
+      "status": "pending",
+      "rationale": "Pin to Screen is one of CleanShot X's most-praised features in user reviews and is heavily requested in GitHub issues for competing tools. Shottr lacks this feature entirely, making it a concrete gap to exploit. Developers use pinned screenshots to reference API response examples, design specs, or error messages while writing code in another window — a workflow that no system feature addresses. The NSPanel floating window approach at NSFloatingWindowLevel is straightforward AppKit and does not require sandbox exceptions or special entitlements. Click-through mode (ignoresMouseEvents) is a power-user feature unique to dedicated tools."
     },
     {
       "id": "F09",
       "title": "Screenshot Beautifier (Background + Shadow + Padding)",
-      "description": "Wrap the capture in a stylised presentation frame: configurable padding/margin, drop shadow intensity, rounded window chrome, and background (solid color, gradient, or wallpaper). Inspired by Xnapper and CleanShot X's backdrop tool. Targets developers and designers sharing screenshots in docs, tweets, and PRs. Output is a new composited PNG.",
+      "description": "Wrap the capture in a stylized presentation frame as an optional post-annotation step. Controls: padding/margin (0–80pt with live preview), background (solid color swatch, gradient picker, or macOS wallpaper sampling), drop shadow (intensity 0–100%, blur radius, x/y offset), rounded window chrome (radius 0–12pt), and optional 2x output resolution for Retina-quality social sharing. Compose final image using CGContext layering: background layer → shadow layer → padded screenshot. Provide 5 built-in presets: Dark Gradient, Pastel, Minimal White, Transparent, and Auto-wallpaper (samples current desktop). Last-used preset remembered in UserDefaults. Live preview thumbnail updates in real-time as sliders move. Custom preset save/delete.",
       "priority": "medium",
-      "status": "pending"
+      "status": "pending",
+      "rationale": "Xnapper's entire market thesis is validated — it holds a 4.7 average rating and $5 AppSumo price point, proving users pay specifically for beautification. The Gold Penguin review calls it 'the best screenshot tool ever' purely for one-click beautification. However, Xnapper has post-acquisition quality issues (2025 reviews report inset auto-detection broke, defaults to white border regardless of screenshot content). This is a market gap: Xnapper is declining in quality, CleanShot X's backdrop tool is basic (10 templates), and Shottr just added background support. A polished, auto-smart beautifier built into a full-featured tool is a strong differentiator for the developer/designer Twitter/X sharing use case."
     },
     {
       "id": "F10",
       "title": "Capture History Panel",
-      "description": "Persistent sidebar/panel showing thumbnails of recent captures (last 30 by default, configurable). Click to reopen in annotation editor. Drag to export. Delete individual items or clear all. Metadata: timestamp, capture mode, dimensions. Stored locally in ~/Library/Application Support/FrameShot/history/. CleanShot X's history is a top-cited feature; Shottr lacks it entirely.",
+      "description": "Persistent panel showing thumbnails of recent captures. After each capture+save, write a 256px-wide PNG thumbnail and metadata JSON (timestamp, capture mode, dimensions, file path, annotations present) to ~/Library/Application Support/FrameShot/history/. Keep last 100 entries (configurable 30–500). Panel: NSPanel or SwiftUI-in-AppKit popover showing thumbnail grid sorted by recency. Click thumbnail to reopen in annotation editor. Right-click context menu: Copy, Save As, Delete, Pin to Screen, Re-annotate. Search by date range. 'Clear All' with confirmation dialog. Drag thumbnail to Finder/mail/Slack to export inline. History purges oldest entries automatically when limit is exceeded.",
       "priority": "medium",
-      "status": "pending"
+      "status": "pending",
+      "rationale": "CleanShot X's capture history is one of its top-cited justifications for the $29 price. Shottr has no history panel at all — this is explicitly noted as a gap in the Setapp comparison. The workflow need is real: developers frequently need to recover a screenshot taken 10 minutes ago to paste into a bug report, and the ~/Desktop or ~/Screenshots folder is not a practical UI for this. Storing thumbnails + metadata locally at ~/Library/Application Support respects the no-sandbox approach and requires no cloud infrastructure. The history panel also surfaces the 'reopen and re-annotate' workflow that makes FrameShot stickier than one-shot tools."
     },
     {
       "id": "F11",
       "title": "Developer Tools — Pixel Ruler, Color Picker, Magnifier",
-      "description": "Inline tools surfaced in the annotation editor and capture overlay: (1) Pixel ruler with px/pt toggle for measuring distances between elements, (2) Color picker eyedropper showing HEX, RGB, HSL, and OKLCH values with one-click clipboard copy, (3) Loupe/magnifier that zooms into cursor area at 4x–8x during region selection for pixel-perfect cropping. Shottr's pixel tools are its single biggest differentiator over CleanShot X; FrameShot should match them.",
+      "description": "Three precision tools woven into both the capture overlay and annotation editor: (1) Pixel ruler: live width×height readout in px and pt while dragging region; in annotation editor, a Ruler annotation tool lets user draw a measurement line between two points with a labeled distance in px/pt (toggle key: M). (2) Color picker eyedropper: hover loupe shows 9×9 pixel grid with color swatch; click samples the pixel from CGImage; popover simultaneously shows HEX, RGB, HSL, OKLCH (CSS), and APCA contrast ratio values; one-click copy for each format; color history row of last 8 sampled colors. (3) Loupe magnifier during region selection: 8×8 pixel grid at 6x zoom centered on cursor, with crosshair for pixel-perfect boundary alignment. OKLCH is the CSS Color 4 standard; inclusion signals Shottr-level precision for modern frontend developers.",
       "priority": "medium",
-      "status": "pending"
+      "status": "pending",
+      "rationale": "This is Shottr's single biggest differentiator over CleanShot X. The ScreenSnap Pro comparison states 'The screen ruler alone is worth $12' and CleanShot X's lack of pixel measurement tools is its most-cited developer complaint. Shottr's color picker showing HEX, RGB, HSL, OKLCH, and APCA contrast ratios is praised by frontend developers and accessibility-conscious designers as uniquely valuable — no other tool in the market shows APCA contrast ratios inline. FrameShot matching Shottr's precision toolset while also offering CleanShot X features (history, pin, beautifier) is the core product thesis."
     },
     {
       "id": "F12",
       "title": "Distribution, Licensing, and Auto-Update",
-      "description": "Direct DMG distribution (not Mac App Store) to avoid sandbox restrictions that break CGEventTap global hotkeys and ScreenCaptureKit entitlements. Notarize + staple ticket to DMG with altool/notarytool so Gatekeeper approves offline. One-time purchase pricing ($29 suggested, mirroring ScreenSnap Pro) with optional paid update licence after 12 months — matches market preference against subscription fatigue. Sparkle-based auto-updater.",
+      "description": "Direct DMG distribution (not Mac App Store) to preserve CGEventTap (Input Monitoring) and ScreenCaptureKit entitlements outside App Sandbox. Sign with Developer ID Application certificate (not ad-hoc) to ensure stable TCC permission hash across updates — ad-hoc signing resets Screen Recording permission on every install. Notarize with Apple notarytool (xcrun notarytool submit), await ticket (typically 30–90 seconds, but plan for multi-hour queues which Apple's service occasionally exhibits), then staple ticket to .app and .dmg with xcrun stapler. Validate with spctl --assess. DMG built with create-dmg tool. Sparkle 2.x auto-updater: EdDSA key pair generated with generate_keys tool, appcast XML hosted on GitHub Releases, public key embedded in Info.plist. One-time purchase at $29 (mirroring CleanShot X lifetime, ScreenSnap Pro). 30-day free trial (full features, no watermark). After trial: in-app licence key entry sheet with offline hash validation against machine UUID. Optional paid upgrade licence after 12 months for major version updates — current version works forever.",
       "priority": "high",
-      "status": "pending"
+      "status": "pending",
+      "rationale": "Market research conclusively shows subscription fatigue is the #1 reason users leave CleanShot X. The screensnap.pro blog was literally built to serve users who want 'a professional screenshot tool without the subscription'. Shottr users revolted when it moved from free to paid in late 2024 — strong negative signal that free-to-paid transitions hurt retention. Xnapper is $39 one-time. ScreenSnap Pro is $29 one-time. The winning model is one-time purchase ~$29 with optional paid major-version upgrades. Direct DMG with notarization is non-negotiable: Mac App Store sandbox prevents CGEventTap, and the App Store review process adds days of latency to hotfix releases. notarytool (the new API) replaced altool in 2023 and is the only supported path. Notarization can queue for hours in rare cases — build pipeline must poll for completion, not assume 90-second turnaround."
     }
   ],
   "tasks": [
     {
       "id": "T01",
       "feature_id": "F01",
-      "title": "Scaffold Xcode project: Swift, AppKit, no Dock icon",
-      "description": "Create Xcode project targeting macOS 13+. Set LSUIElement=YES in Info.plist to suppress Dock icon. Configure minimum entitlements: com.apple.security.app-sandbox = false (needed for CGEventTap), com.apple.security.cs.allow-unsigned-executable-memory = false. Add SwiftUI for preference panels, AppKit for NSStatusItem and NSPanel.",
+      "title": "Scaffold Xcode project: Swift, AppKit, LSUIElement, entitlements",
+      "description": "Create Xcode project targeting macOS 13+ (Ventura minimum for ScreenCaptureKit parity). Set LSUIElement=YES in Info.plist to suppress Dock icon. Configure entitlements file: com.apple.security.app-sandbox=false (required for CGEventTap + unrestricted ScreenCaptureKit), com.apple.security.cs.allow-unsigned-executable-memory=false (keep hardened runtime), com.apple.security.device.audio-input=false (not needed for screenshot-only). Add SwiftUI for preferences panels and history grid; AppKit for NSStatusItem, NSPanel, and CGEventTap. Target macOS 13 for SCStream, macOS 14+ conditional for SCScreenshotManager.",
       "status": "pending"
     },
     {
       "id": "T02",
       "feature_id": "F01",
-      "title": "Implement NSStatusItem menu bar icon and dropdown menu",
-      "description": "Create NSStatusItem with custom icon. Build NSMenu with items for each capture mode, preferences, capture history, and quit. Wire keyboard shortcut display into menu items. Menu should also show last capture thumbnail.",
+      "title": "Implement NSStatusItem with dropdown menu and last-capture thumbnail",
+      "description": "Create NSStatusItem with custom SF Symbol icon (camera.viewfinder). Build NSMenu with sections: Capture (Region, Window, Fullscreen, Scrolling), Tools (OCR, Color Picker), History (last 3 thumbnails as custom menu items), Pins (active pins list), Preferences, Quit. Show keyboard shortcut for each capture mode in menu item keyEquivalent. Last capture thumbnail shown as NSMenuItem with custom view (48x36pt image). Menu should also show capture count badge on status item icon.",
       "status": "pending"
     },
     {
       "id": "T03",
       "feature_id": "F01",
-      "title": "Implement CGEventTap global hotkey engine",
-      "description": "Register a CGEventTap for keyDown events at kCGSessionEventTap. Parse modifier+key combos. Map to capture actions. Hotkeys must be user-configurable and stored in UserDefaults. Handle the Accessibility permission prompt (CGEventTap requires Accessibility access in addition to Screen Recording).",
+      "title": "Implement CGEventTap global hotkey engine with Input Monitoring permission",
+      "description": "Register CGEventTap at kCGSessionEventTap for keyDown events. Parse modifier+key combos (up to 4 modifiers). Map to capture actions. Hotkeys user-configurable via ShortcutRecorder-style control in Preferences. Stored in UserDefaults. On app launch: check CGPreflightListenEventAccess(); if false, show onboarding sheet with 'Open Accessibility Settings' deeplink (URL: x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility). Handle edge cases: hotkey conflicts with system shortcuts, disabled hotkeys when annotation editor is frontmost.",
       "status": "pending"
     },
     {
       "id": "T04",
       "feature_id": "F02",
-      "title": "Request Screen Recording permission and enumerate displays/windows via ScreenCaptureKit",
-      "description": "At app launch call CGRequestScreenCaptureAccess() to register in System Settings. Use SCShareableContent.getExcludingDesktopWindows(_:onScreenWindowsOnly:) to enumerate displays and on-screen windows. Handle permission-denied state gracefully with a settings deeplink. Sign with stable Apple Development certificate to avoid TCC hash churn.",
+      "title": "Screen Recording permission flow and SCShareableContent enumeration",
+      "description": "At first launch check CGPreflightScreenCaptureAccess(); if false, show permission onboarding panel with 'Open Screen Recording Settings' deeplink (URL: x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture). After permission granted, call SCShareableContent.getExcludingDesktopWindows(false, onScreenWindowsOnly: true) with a 5-second timeout — the SCShareableContent enumeration has a known 3–10 second hang bug; display a spinner and fail gracefully on timeout. Sign the app bundle with Developer ID Application certificate (not ad-hoc) to ensure stable TCC hash. Do NOT call CGPreflightScreenCaptureAccess() on macOS 15.1+ (deprecated); rely on catching SCShareableContent errors instead.",
       "status": "pending"
     },
     {
       "id": "T05",
       "feature_id": "F02",
       "title": "Build transparent overlay window for region and window selection",
-      "description": "Present a full-screen NSWindow (borderless, key, level .screenSaver) with a SwiftUI/AppKit drawing layer. Implement crosshair cursor, rubber-band region selection, and real-time dimension label. For window mode, highlight the hovered SCWindow boundary in blue. Include loupe magnifier at cursor (+4x, 9x9 pixel grid).",
+      "description": "Present a full-screen NSWindow (borderless, key, styleMask: .borderless, level: .screenSaver) covering all displays. SwiftUI/AppKit drawing layer tracks mouse for crosshair. Rubber-band region selection: mouseDown records origin, mouseDrag updates rect, mouseUp triggers capture. Show live dimension label in HUD (e.g. '1280 × 720 pt'). For window mode: enumerate on-screen SCWindows, highlight the hovered window boundary using SCWindow.frame in screen coordinates (convert via NSScreen), draw highlight rect with 2pt blue stroke + 20% blue fill. Loupe magnifier at cursor: 8×8 CGImage crop at cursor position, scaled 6x, shown in 80×80pt panel with crosshair overlay. ESC cancels without capture.",
       "status": "pending"
     },
     {
       "id": "T06",
       "feature_id": "F02",
-      "title": "Capture selected region or window using SCScreenshotManager",
-      "description": "Use SCScreenshotManager.captureImage(contentFilter:configuration:) (macOS 14+) or SCStream for macOS 13. Apply SCContentFilter with SCDisplay or SCWindow. Set SCStreamConfiguration: resolution = 2x for Retina, showsCursor = false for clean captures. Return CGImage to annotation pipeline.",
+      "title": "Capture region or window via SCScreenshotManager (macOS 14+) with SCStream fallback",
+      "description": "Build CaptureEngine protocol with two implementations: (1) SCScreenshotManagerEngine (macOS 14+): use SCScreenshotManager.captureImage(contentFilter:configuration:) with SCContentFilter(display:excludingWindows:) for region or SCContentFilter(desktopIndependentWindow:) for window. SCStreamConfiguration: width/height = selection.width * displayScale (Retina), showsCursor = false, pixelFormat = kCVPixelFormatType_32BGRA. (2) SCStreamEngine (macOS 13): start SCStream, capture first frame, stop immediately. Return CGImage to annotation pipeline. Handle error -3821 (display stream interrupted): retry once, then show error HUD. Detect static-screen SCK bug (no frames generated) with a 3-second watchdog timer.",
       "status": "pending"
     },
     {
       "id": "T07",
       "feature_id": "F03",
-      "title": "Build annotation editor NSPanel with tool palette",
-      "description": "Create floating NSPanel that shows the captured image. Implement toolbar with tool buttons: arrow, line, rectangle, circle, pen, text, step-number, highlight. Tool selection persists. Color well and stroke-width stepper. Keyboard shortcuts for each tool (V=select, A=arrow, R=rect, T=text, B=blur).",
+      "title": "Build annotation editor NSPanel with tool palette and keyboard shortcuts",
+      "description": "Create NSPanel (styleMask: [.titled, .closable, .resizable], floating) that displays the captured CGImage. Toolbar: tool buttons for arrow, line, rectangle, ellipse, pen, text, step-number, highlight, blur, ruler, eyedropper. Keyboard shortcuts: V=select, A=arrow, L=line, R=rect, E=ellipse, P=pen, T=text, N=number, H=highlight, B=blur, M=ruler, I=eyedropper. Color well (NSColorWell) + stroke-width stepper (NSStepperCell, 1–10pt) in toolbar. Tool selection and color/stroke persist in UserDefaults. Bottom toolbar shows: image dimensions, zoom level (NSSlider 50–300%), done/export buttons.",
       "status": "pending"
     },
     {
       "id": "T08",
       "feature_id": "F03",
-      "title": "Implement Core Graphics drawing layer with undo/redo stack",
-      "description": "Maintain an array of annotation objects (each with tool type, points, color, strokeWidth). Render onto NSView via drawRect using CGContext. Mouse down/drag/up lifecycle for each tool. Command+Z undo and Command+Shift+Z redo using UndoManager. Multi-select with rubber-band, move with arrow tool.",
+      "title": "Implement Core Graphics annotation layer with undo/redo",
+      "description": "Define AnnotationObject protocol with: tool type enum, points [CGPoint], color CGColor, strokeWidth CGFloat, filled Bool. Subclasses: ArrowAnnotation, RectAnnotation, EllipseAnnotation, PenAnnotation, TextAnnotation, NumberAnnotation, HighlightAnnotation, BlurAnnotation, RulerAnnotation. Render via NSView.drawRect: draw base CGImage, then iterate annotations calling each object's draw(in:) method with CGContext. UndoManager: registerUndo on each annotation add/remove/move. Multi-select: rubber-band selects annotations whose bounds intersect selection rect. Move: mouseDown on selected annotation begins drag, mouseUp commits move (registered as undo action). Delete selected: Backspace key.",
       "status": "pending"
     },
     {
       "id": "T09",
       "feature_id": "F03",
-      "title": "Implement text annotation with inline editing",
-      "description": "Double-click to place NSTextField overlay. Font size, bold, color picker. On commit, rasterize text into the annotation layer. Support emoji and Unicode.",
+      "title": "Implement text annotation with inline NSTextField editing",
+      "description": "T key activates Text tool. mouseDown places an NSTextField overlay at click point. Font size stepper (8–72pt), bold/italic toggles, color well. User types text; Return or click-outside commits. On commit: rasterize NSAttributedString into the annotation layer by drawing into CGContext. TextAnnotation stores: text String, font NSFont, color NSColor, origin CGPoint. Double-click on existing TextAnnotation re-opens NSTextField for editing. Support emoji and Unicode (NSAttributedString handles this natively). Step-number tool: auto-incrementing integer in a circle, shared counter resets when all step annotations are deleted.",
       "status": "pending"
     },
     {
       "id": "T10",
       "feature_id": "F04",
-      "title": "Implement blur redaction tool (Gaussian + mosaic)",
-      "description": "Add Blur tool to annotation palette. On mouseDown+drag, define rectangular region. Apply CIFilter (CIGaussianBlur or custom mosaic pixelate using CIPixellate) to that CGImage sub-region using Core Image. Intensity slider (1–20). Flatten result into image — redaction is permanent in exported output.",
+      "title": "Implement rectangular and freehand blur redaction (Gaussian + mosaic)",
+      "description": "B key activates Blur tool. Two sub-modes: rectangular (drag) and freehand (paint strokes). Rectangular: on mouseUp, extract CGImage sub-region matching the rect, apply CIFilter chain: CIGaussianBlur (radius = intensity * 2) or CIPixellate (scale = intensity), composite blurred sub-image back onto CGContext. Freehand: accumulate CGPath from mouseDrag strokes, create CGImage mask from the path, apply CIBlendWithMask to composite blurred-full-image and original-image using the path mask. Intensity slider (1–20) in toolbar, shown when Blur tool is active. BlurAnnotation stores: mode (gaussian/mosaic), region CGRect or path [CGPoint], intensity Float. At export/flatten time, redaction is rasterized permanently — not removable in exported PNG.",
       "status": "pending"
     },
     {
       "id": "T11",
       "feature_id": "F04",
-      "title": "Implement freehand blur mask",
-      "description": "Allow painting a freehand blur path (like an eraser). Build a CGPath mask from brush strokes, apply it as a CIImage masking filter over the blurred layer. Useful for non-rectangular sensitive content (e.g., faces, curved UI elements).",
+      "title": "Implement annotation flatten and export pipeline",
+      "description": "Create AnnotationFlattener: takes base CGImage + [AnnotationObject], creates CGBitmapContext at original image resolution (not display resolution — avoid double-scaling), draws base image, then iterates all annotations calling draw(in:) on each, returns flattened CGImage. BlurAnnotations apply CIFilter in-place before drawing other overlays. TextAnnotations rasterize NSAttributedString at correct scale factor. Export: PNG via CGImageDestination + UTType.png, JPEG via CGImageDestination + UTType.jpeg with quality value from preferences. This pipeline is shared by Copy, Save, and Beautifier — all use the flattened CGImage as input.",
       "status": "pending"
     },
     {
       "id": "T12",
       "feature_id": "F05",
-      "title": "Implement copy-to-clipboard and save-to-file actions",
-      "description": "Flatten all annotation layers onto the base CGImage using CGContext. Copy final PNG to NSPasteboard via NSPasteboard.general.setData(_:forType:.png). Save to configured folder using configurable filename pattern (FrameShot_YYYY-MM-DD_HH-mm-ss). Show transient HUD confirmation. Format options: PNG and JPEG with quality slider.",
+      "title": "Implement copy-to-clipboard and save-to-file with HUD feedback",
+      "description": "CopyAction: flatten annotations, write PNG data to NSPasteboard.general via NSPasteboard.setData(_:forType: .png). Show transient HUD (custom NSPanel, fades out in 1.5s): 'Copied to Clipboard ✓'. SaveAction: flatten annotations, write to configured folder with filename pattern (FrameShot_YYYY-MM-DD_HH-mm-ss). Format selection from preferences: PNG via UTType.png or JPEG via UTType.jpeg with quality setting. After save: show HUD with filename + 'Reveal in Finder' link (NSWorkspace.activateFileViewerSelecting). Auto-copy setting: if enabled, CopyAction fires automatically on capture completion before annotation editor opens.",
       "status": "pending"
     },
     {
       "id": "T13",
       "feature_id": "F05",
-      "title": "Preferences pane: output folder, format, auto-copy, hotkeys",
-      "description": "SwiftUI Settings scene (or NSPanel) with tabs: General (output folder, auto-copy toggle, file format, naming pattern), Hotkeys (record-shortcut controls per action), About. Persist all settings in UserDefaults. Include a 'Save to Desktop' quick toggle.",
+      "title": "Build Quick Access Overlay and Preferences pane",
+      "description": "Quick Access Overlay: a floating panel (NSPanel) that appears near the capture point for 4 seconds after capture. Buttons: Copy, Save, Annotate (opens editor), Pin, Beautify, Discard. Auto-dismissed on button tap or 4-second timeout. User can disable it in Preferences. Preferences pane (SwiftUI Settings scene or tabbed NSPanel): General tab (output folder NSOpenPanel, auto-copy toggle, format picker, naming pattern NSTextField with token help), Hotkeys tab (ShortcutRecorder-style views per action), History tab (max entries slider, clear history button), About tab (version, licence status, check for updates button). All settings persisted in UserDefaults.",
       "status": "pending"
     },
     {
       "id": "T14",
       "feature_id": "F06",
-      "title": "Integrate Apple Vision OCR (VNRecognizeTextRequest)",
-      "description": "Add OCR button to annotation editor toolbar. On tap, run VNRecognizeTextRequest on the current CGImage using a background DispatchQueue. Concatenate recognized strings in reading order. Copy result to clipboard and show in a popover. Support revision 3 (accurate mode). Also run VNDetectBarcodesRequest for QR codes.",
+      "title": "Integrate Apple Vision OCR (VNRecognizeTextRequest) with QR detection",
+      "description": "OCR button in annotation editor toolbar + keyboard shortcut Cmd+Shift+T. Create VNImageRequestHandler with the current CGImage. Run two requests in parallel on DispatchQueue.global(qos: .userInitiated): (1) VNRecognizeTextRequest(revision: VNRecognizeTextRequestRevision3, recognitionLevel: .accurate, usesLanguageCorrection: true) — collect all VNRecognizedTextObservation results, sort by boundingBox.minY descending (top-to-bottom reading order), join with newlines. (2) VNDetectBarcodesRequest — for each VNBarcodeObservation, include the payloadStringValue in results. Show results in a copyable NSTextView popover anchored to the OCR button. Auto-copy combined text to clipboard. Draw bounding-box overlays on the annotation canvas for each recognized text block (shown as dashed blue rectangles, not included in export).",
       "status": "pending"
     },
     {
       "id": "T15",
       "feature_id": "F06",
-      "title": "OCR region selection — extract text from sub-region",
-      "description": "Allow user to drag a selection rect on the screenshot before running OCR, limiting recognition to that area. Display results in a copyable text view. Show bounding-box overlays for each recognized text block.",
+      "title": "OCR sub-region selection mode",
+      "description": "When user activates OCR with a sub-region drag (holding Option while clicking OCR button), show a crosshair overlay on the annotation canvas. User drags a rect; on mouseUp, crop the base CGImage to that CGRect (in image coordinates, accounting for NSView/CGImage coordinate flip), run VNImageRequestHandler on the cropped image, display results in popover. Show bounding boxes only within the selected sub-region. Sub-region OCR is useful when a screenshot contains mixed content (e.g., code + UI) and user wants to extract only the code block.",
       "status": "pending"
     },
     {
       "id": "T16",
       "feature_id": "F07",
-      "title": "Implement SCStream-based scroll capture with frame stitching",
-      "description": "Start SCStream on the target window. Post CGEventPost synthetic scroll events (kCGScrollEventUnit) in increments. Capture frames at each scroll position. Detect end-of-scroll by comparing consecutive frames (pixel diff < threshold). Stitch frames with overlap alignment using image-correlation or SSIM. Cancel on user press of Escape.",
+      "title": "Implement SCStream-based scrolling capture with frame stitching",
+      "description": "ScrollCaptureController: (1) User activates Scrolling Capture mode, clicks on target window. (2) Start SCStream on the target SCWindow (SCContentFilter with SCWindow, SCStreamConfiguration showsCursor:false). (3) Post CGScrollWheel events via CGEventPost(kCGSessionEventTap, scrollEvent) at 3-frame intervals (roughly 50ms per scroll step at 60fps stream). (4) Collect frames from SCStream delegate didOutputSampleBuffer; convert CMSampleBuffer to CGImage. (5) Scroll-end detection: compare consecutive frames using pixel diff on 10 horizontal sampling strips; if diff < 0.5% for 3 consecutive frame pairs, declare scroll end. (6) Stitch: align frames using overlapping region correlation (find maximum correlation offset between bottom 20% of frame N and top 20% of frame N+1 to account for non-integer scroll step). (7) Output single stitched CGImage to annotation editor. ESC at any point cancels and stops SCStream.",
       "status": "pending"
     },
     {
       "id": "T17",
       "feature_id": "F07",
-      "title": "Handle sticky headers and lazy-load in scrolling capture",
-      "description": "Detect and mask out sticky/fixed-position elements (header bars) that repeat in every frame to avoid duplication in stitch. For lazy-loaded content, add configurable inter-frame delay (default 150ms) to allow content to render before capturing next frame.",
+      "title": "Handle sticky headers, lazy-load delays, and secondary display SCK limitation",
+      "description": "Sticky header detection: after collecting all frames, compute a 'static strip' by finding the topmost N rows (default 80px) that are pixel-identical across all frames. Mask out that strip from all frames before stitching — do not include it in intermediate frames, only include it once at the top of the final stitch. Lazy-load delay: expose a per-capture 'Content Delay' setting (50ms, 150ms, 300ms, 500ms) that adds a pause between scroll events and frame capture. Default 150ms covers most React/Vue hydrated content. Secondary display workaround: if target window is on a non-primary display and the user reports missing sub-windows (e.g., tooltips), log a warning that SCK Window Capture on secondary displays has a known sub-window capture limitation (SCK bug; documented as known limitation in help text).",
       "status": "pending"
     },
     {
       "id": "T18",
       "feature_id": "F08",
       "title": "Implement floating pin panel (always-on-top NSPanel)",
-      "description": "Add 'Pin to Screen' button in annotation editor. Create NSPanel at NSFloatingWindowLevel with the annotated screenshot as content. Support drag to reposition, corner-drag to resize, opacity slider (via alphaValue), and click-through toggle (ignoresMouseEvents). Multiple simultaneous pins supported. Double-click to reopen in editor.",
+      "description": "PinPanel: NSPanel subclass with styleMask [.titled, .closable, .resizable, .nonactivatingPanel], level NSWindow.Level.floating (NSFloatingWindowLevel). Content: NSImageView with the flattened+annotated CGImage. Drag bar at top for repositioning. Resize handles via window's standard resize mechanism (maintain aspect ratio when Shift held). Opacity slider in compact toolbar: binds to NSWindow.alphaValue (0.2–1.0). Click-through toggle button: sets NSWindow.ignoresMouseEvents = true when active (cursor shows through panel, clicks pass to app beneath). Double-click on image reopens in annotation editor. ESC dismisses frontmost pin. PinManager singleton tracks [PinPanel]; provides showAll(), hideAll(), dismissAll() methods. Menu bar dropdown 'Pins' section shows thumbnail list with individual dismiss buttons.",
       "status": "pending"
     },
     {
       "id": "T19",
       "feature_id": "F08",
-      "title": "Pin management: list, dismiss, restore",
-      "description": "Track active pins in an array. Show pin list in menu bar dropdown with thumbnails. Dismiss individual pin or 'Clear All Pins'. Optionally persist pins across app restarts (serialize panel frame + image path to UserDefaults).",
+      "title": "Pin persistence and multi-pin management",
+      "description": "On app quit/relaunch: serialize active pins to UserDefaults as [{imagePath: String, frame: NSRect, opacity: Float, clickThrough: Bool}]. On relaunch, restore pins from this array. Image stored in ~/Library/Application Support/FrameShot/pins/ as numbered PNGs. Maximum 10 simultaneous pins (above this, oldest pin auto-dismissed with HUD warning). 'Clear All Pins' option in menu bar dropdown — confirms with NSAlert. PinManager broadcasts a Combine publisher so the menu bar dropdown updates reactively when pins are added/removed. Each pin displays a small badge with its sequence number for identification in the management list.",
       "status": "pending"
     },
     {
       "id": "T20",
       "feature_id": "F09",
-      "title": "Implement screenshot beautifier — background, padding, shadow",
-      "description": "Add 'Beautify' step in annotation editor (as a toggle panel). Controls: padding (0–80pt), background (solid color swatch or gradient picker), drop shadow (intensity 0–100, radius, offset), rounded corners on window chrome, and optional 'Hide Desktop Icons' during capture. Compose final image using CGContext.draw() with these decoration layers.",
+      "title": "Implement beautifier compositor (background, padding, shadow, chrome)",
+      "description": "BeautifierConfig: struct with padding Float, background BeautifierBackground (solid color / gradient / wallpaper), shadowIntensity Float (0–1), shadowRadius Float, shadowOffset CGSize, cornerRadius Float (0–12pt for window chrome), outputScale Float (1x or 2x). BeautifierRenderer: (1) Compute output canvas size = originalImageSize + padding * 2. (2) Create CGBitmapContext at outputSize * outputScale. (3) Draw background: CGGradient for gradients, NSImage(named: .desktopPicture) for wallpaper. (4) Draw drop shadow: CGContext.setShadow(offset:, blur:, color:). (5) Draw screenshot with rounded clip path (CGPath with cornerRadius). (6) Return composited CGImage. Expose as a BeautifyAction in the Quick Access Overlay and as a 'Beautify' button in the annotation editor. Applies after annotation flatten.",
       "status": "pending"
     },
     {
       "id": "T21",
       "feature_id": "F09",
-      "title": "Beautifier presets and live preview",
-      "description": "Provide 5 built-in presets (e.g., Dark Gradient, Pastel, Minimal White, Transparent, Auto-wallpaper). Show live preview thumbnail that updates as user drags sliders. Allow saving custom presets. Last-used preset is remembered.",
+      "title": "Beautifier presets, live preview, and auto-smart background",
+      "description": "BeautifierPanel: NSPanel with a 300x200pt live preview thumbnail (updates on each slider move via debounced 100ms timer), preset picker (NSSegmentedControl or grid), and individual controls for each BeautifierConfig property. Built-in presets: Dark Gradient (bg: #1a1a2e → #16213e, shadow 80%), Pastel (bg: #ffecd2 → #fcb69f, shadow 30%), Minimal White (bg: white, shadow 40%), Transparent (bg: clear, no shadow), Auto-wallpaper (samples current NSScreen desktop image for background). Auto-smart color: when Auto-wallpaper is not selected, sample the 4 corner pixels of the screenshot to detect if the screenshot has a light or dark dominant edge, then auto-select a contrasting preset. Save up to 5 custom presets. Last-used preset remembered in UserDefaults.",
       "status": "pending"
     },
     {
       "id": "T22",
       "feature_id": "F10",
       "title": "Implement local capture history storage",
-      "description": "After each capture+save, write PNG thumbnail (256px wide) and metadata JSON (timestamp, mode, original dimensions, file path) to ~/Library/Application Support/FrameShot/history/. Keep last 100 entries by default (configurable). Purge oldest entries when limit is exceeded.",
+      "description": "HistoryStore: writes two files per capture to ~/Library/Application Support/FrameShot/history/{UUID}/: (1) thumb.png — 256pt-wide thumbnail generated via CGImageDestination with kCGImageDestinationLossyCompressionQuality=0.7 JPEG (not PNG — saves disk space for thumbnails). (2) meta.json — {id, timestamp, captureMode (region/window/fullscreen/scrolling), originalDimensions {width, height}, filePath (saved file or nil), annotationsPresent: Bool, ocrText: String?}. Maintain an index file at history/index.json ([{id, timestamp}] sorted by recency). On each write: append to index, prune oldest entries if count > maxHistory. maxHistory default 100, configurable 30–500 in Preferences. HistoryStore exposes a Combine @Published var entries: [HistoryEntry] for reactive UI binding.",
       "status": "pending"
     },
     {
       "id": "T23",
       "feature_id": "F10",
-      "title": "Build history panel UI — thumbnail grid with search",
-      "description": "NSPanel (or SwiftUI popover) showing thumbnail grid of recent captures. Click thumbnail to reopen in annotation editor. Right-click for context menu: Copy, Save As, Delete, Pin to Screen. Search/filter by date. 'Clear History' button with confirmation.",
+      "title": "Build history panel UI — thumbnail grid with search and context menu",
+      "description": "HistoryPanel: NSPanel backed by SwiftUI (NSHostingController) with a LazyVGrid of HistoryThumbnailView cells. Each cell: thumbnail image, timestamp label, capture mode badge, dimensions label. Click to open in annotation editor (passes original file path or regenerates from stored data). Right-click NSMenu: 'Copy Image', 'Open in Editor', 'Save As...', 'Pin to Screen', 'Delete', 'Show in Finder'. Date search: NSSearchField above grid filters entries by date range using DateInterval comparison. 'Clear All' button bottom-left with NSAlert confirmation. Drag cell to Finder drops the original PNG file. Empty state: illustrated empty state with 'Take your first screenshot' hint.",
       "status": "pending"
     },
     {
       "id": "T24",
       "feature_id": "F11",
-      "title": "Implement pixel ruler tool in capture overlay and annotation editor",
-      "description": "In the crosshair overlay: show a live ruler readout (width x height in px and pt) while dragging. In annotation editor: add a Ruler tool that lets user drag a measurement line between two points; shows distance label with px/pt toggle. Stored as an annotation layer (can be toggled on/off for export).",
+      "title": "Implement pixel ruler tool and live dimension HUD in capture overlay",
+      "description": "Capture overlay: display a live HUD label while dragging region selection showing '{W} × {H} px  ({W/scaleFactor} × {H/scaleFactor} pt)'. Anchor the label 8pt below the selection rect's bottom-right corner, flip to above if near bottom edge. In annotation editor: M key activates Ruler tool. mouseDown records pointA, mouseDrag draws a measurement line (dashed NSBezierPath), mouseUp records pointB. Compute pixel distance = hypot(b.x - a.x, b.y - a.y) in image coordinates. Display a label midpoint on the line: '{N} px / {N/scale} pt'. Ruler annotations are drawn as annotation layer objects and can be toggled invisible for export (export-visibility toggle in ruler's contextual menu). RulerAnnotation stores: pointA, pointB, unit (px or pt), labelVisible Bool.",
       "status": "pending"
     },
     {
       "id": "T25",
       "feature_id": "F11",
-      "title": "Implement color picker eyedropper",
-      "description": "Add eyedropper tool in annotation editor. Hovering shows a loupe with crosshair and a color swatch. Clicking samples the pixel from the CGImage and copies HEX to clipboard. Popover shows HEX, RGB, HSL, and OKLCH values simultaneously. Color history row showing last 8 picked colors.",
+      "title": "Implement color picker eyedropper with OKLCH and APCA support",
+      "description": "I key (eyedropper) activates color picker mode. During hover: show a 80×80pt loupe panel following the cursor, displaying a 9×9 pixel grid sampled from the CGImage at cursor position (accounting for Retina scale factor). The center pixel has a white crosshair border. Below the loupe: a color swatch with the sampled color and its HEX value. mouseClick samples the center pixel. Result popover (anchored to eyedropper button): displays sampled color swatch (40×40pt) + five format rows: HEX (#RRGGBB), RGB (rgb(R, G, B)), HSL (hsl(H, S%, L%)), OKLCH (oklch(L C H)), APCA contrast ratio against #FFFFFF and #000000. Each row has a one-click copy icon. Color history row shows last 8 sampled colors as 24pt swatches; click any to re-copy. OKLCH conversion: implement via standard CIEXYZ→Oklab→OKLCH matrix math (no external library needed). APCA: implement SAPC-0.98G algorithm for Lc contrast values.",
       "status": "pending"
     },
     {
       "id": "T26",
       "feature_id": "F12",
-      "title": "Configure entitlements, code signing, and notarization pipeline",
-      "description": "Set hardened runtime entitlements: com.apple.security.app-sandbox=false (required for CGEventTap + ScreenCaptureKit outside sandbox). Sign with Apple Developer ID certificate (not ad-hoc) to ensure stable TCC hash. Submit to Apple notarytool, await ticket, then staple ticket to .app and .dmg with xcrun stapler. Validate with spctl --assess.",
+      "title": "Configure Developer ID code signing and notarization CI pipeline",
+      "description": "Entitlements file: com.apple.security.app-sandbox=false, com.apple.security.cs.disable-library-validation=false, com.apple.security.cs.allow-dyld-environment-variables=false, com.apple.security.automation.apple-events=false (minimum hardened runtime surface). Sign with Apple Developer ID Application certificate: CODE_SIGN_IDENTITY='Developer ID Application: ...' CODE_SIGN_STYLE=Manual. Build archive: xcodebuild archive. Export .app with exportOptionsPlist (method: developer-id). Submit to notarytool: xcrun notarytool submit FrameShot.app.zip --apple-id $APPLE_ID --password $APP_PASSWORD --team-id $TEAM_ID --wait (--wait polls until done, timeout 30 min). On success: xcrun stapler staple FrameShot.app. Validate: spctl --assess --type execute --verbose FrameShot.app. Build DMG: create-dmg with drag-to-Applications layout. Staple DMG: xcrun stapler staple FrameShot.dmg. Store APPLE_ID, APP_PASSWORD (app-specific), TEAM_ID in GitHub Actions secrets or local .env (never committed).",
       "status": "pending"
     },
     {
       "id": "T27",
       "feature_id": "F12",
-      "title": "Build DMG installer and integrate Sparkle auto-updater",
-      "description": "Create a signed, notarized DMG with drag-to-Applications UI using create-dmg or custom AppleScript. Integrate Sparkle 2.x for auto-updates: generate EdDSA signing key pair, host appcast XML on GitHub Releases or own CDN, embed public key in app bundle. Show update badge in menu bar icon when update is available.",
+      "title": "Integrate Sparkle 2.x auto-updater with EdDSA signing",
+      "description": "Add Sparkle 2.x via Swift Package Manager. In app startup: SUUpdater (Sparkle 2) checks appcast URL on background thread. Appcast XML hosted on GitHub Releases CDN. Generate EdDSA key pair: ./bin/generate_keys (Sparkle CLI tool). Embed SUPublicEDKey in Info.plist. Sign each release zip: ./bin/sign_update FrameShot.zip > signature. Include signature in appcast XML <sparkle:edSignature>. Add 'Check for Updates' menu item (SUMenuItemCheckForUpdates). Add 'Automatically check for updates' toggle in Preferences (bound to SUAutomaticallyUpdate). When update is available: show badge overlay on menu bar status item icon. Respect macOS Sequoia notarization requirement for every update package — every release must be fully notarized before publishing appcast.",
       "status": "pending"
     },
     {
       "id": "T28",
       "feature_id": "F12",
-      "title": "Implement one-time licence and trial model",
-      "description": "30-day free trial (full features, no capture watermark). After trial: require $29 one-time licence key. Licence validation: offline hash check against machine UUID + licence key (no server dependency for daily use). Optional paid upgrade licence after 12 months for continued major-version updates — user keeps current version forever without paying. Implement in-app licence entry sheet.",
+      "title": "Implement 30-day trial and one-time licence validation",
+      "description": "Trial: on first launch, record install date in UserDefaults (key: installDate as ISO8601 string). On each launch: compute daysSinceInstall = Calendar.current.dateComponents([.day], from: installDate, to: Date()).day. If > 30 and no valid licence: show trial-expired sheet (blocks capture, allows opening preferences/licence entry). Trial never shows watermarks or capability degradation — full feature set during trial. Licence model: $29 one-time purchase. Licence key format: XXXX-XXXX-XXXX-XXXX (base32-encoded HMAC-SHA256 of machineUUID + productSalt). Validation: LicenceValidator computes expected HMAC, compares to entered key. Fully offline — no network call needed. Optional upgrade licence after 12 months for next major version (v2.x), sold at $15 upgrade price; current licence works forever for purchased major version. Licence entry sheet: NSPanel with key input NSTextField, 'Activate' button, licence status display. On activation: write validated key + machineUUID to UserDefaults.",
       "status": "pending"
     }
   ],
@@ -298,25 +310,43 @@
     {
       "id": "D01",
       "title": "Direct DMG distribution, not Mac App Store",
-      "rationale": "Mac App Store sandboxing prevents CGEventTap (global hotkeys need Accessibility) and limits ScreenCaptureKit entitlements. Direct DMG with notarization gives full API access while still passing Gatekeeper.",
+      "rationale": "Mac App Store sandboxing prevents CGEventTap (global hotkeys need Accessibility/Input Monitoring outside sandbox) and restricts ScreenCaptureKit entitlements. Direct DMG with Developer ID notarization gives full API access while passing Gatekeeper. App Store review process adds multi-day latency to hotfix releases — unacceptable for a utility app where a broken hotkey needs a same-day fix.",
       "date": "2026-04-09"
     },
     {
       "id": "D02",
       "title": "One-time purchase at $29, no subscription",
-      "rationale": "Market research shows strong user preference for one-time payment for utility apps (ScreenSnap Pro $29, Shottr $12, Xnapper $39 one-time). Subscription fatigue is the #1 reason users abandon CleanShot X. $29 is competitive and sustainable for indie distribution.",
+      "rationale": "Market research conclusively shows subscription fatigue is the #1 reason users switch away from CleanShot X. The screensnap.pro product was explicitly built to offer 'a professional screenshot tool without the subscription'. Shottr's late-2024 move from free to paid (even at $8) generated user backlash. ScreenSnap Pro ($29 one-time), Xnapper ($39 one-time), and Shottr ($8–$30 one-time) all validate the one-time model for this category. A subscription for a utility app that rarely changes feels exploitative to users who don't use cloud features.",
       "date": "2026-04-09"
     },
     {
       "id": "D03",
-      "title": "No Mac App Store sandbox — sign with Developer ID",
-      "rationale": "CGEventTap requires Accessibility permission which is incompatible with App Sandbox. ScreenCaptureKit works both in and out of sandbox, but CGEventTap does not. Use Developer ID signing + notarization for direct distribution.",
+      "title": "Sign with Developer ID certificate, never ad-hoc",
+      "rationale": "Ad-hoc signing (the Xcode default during development) changes the TCC hash on every build, causing macOS to treat each build as a new app and reset Screen Recording permission. This is the #1 developer pain point in ScreenCaptureKit Apple Developer Forums. Signing with a stable Developer ID Application certificate (even during development) ensures TCC permission hash persists across rebuilds. This must be configured from day one of development, not just at release time.",
       "date": "2026-04-09"
     },
     {
       "id": "D04",
       "title": "Use Apple Vision for OCR, not third-party",
-      "rationale": "Apple Vision (VNRecognizeTextRequest) is fully local, private, accurate, and zero extra dependency. Shottr uses it and is praised for OCR speed. Avoids bulky SDKs and cloud round-trips.",
+      "rationale": "Apple Vision (VNRecognizeTextRequest) is fully local, private, and accurate. Shottr uses it and is praised for OCR speed and quality — it is the best-in-class local OCR for macOS apps with no external SDK dependency. Enterprise users cannot send screenshots to cloud OCR services (data security policies). VNDetectBarcodesRequest for QR codes is a free addition that serves the mobile developer use case with zero extra work.",
+      "date": "2026-04-09"
+    },
+    {
+      "id": "D05",
+      "title": "Target macOS 13 minimum with macOS 14+ SCScreenshotManager adoption",
+      "rationale": "SCScreenshotManager.captureImage() (the clean screenshot API replacing deprecated CGWindowListCreateImage) requires macOS 14+. However, macOS 13 Ventura is still in active use (~15–20% of active Macs per public stats). Use SCStream for macOS 13 as a fallback — same ScreenCaptureKit framework, just the streaming path rather than the screenshot path. This ensures compatibility without abandoning macOS 13 users, at the cost of slightly more complex CaptureEngine abstraction.",
+      "date": "2026-04-09"
+    },
+    {
+      "id": "D06",
+      "title": "Handle macOS Sequoia monthly Screen Recording re-authorization gracefully",
+      "rationale": "macOS Sequoia 15 introduced a mandatory monthly prompt for Screen Recording permission re-authorization. Apple changed from weekly to monthly after developer pushback (Sequoia beta 6), and there is no way to permanently suppress the prompt without Full Disk Access terminal tricks that are too invasive for user-facing automation. FrameShot must detect denied permission state on each launch and surface a clear 'Re-authorize Screen Recording' banner with a direct System Settings deeplink, rather than silently failing or showing a cryptic ScreenCaptureKit error.",
+      "date": "2026-04-09"
+    },
+    {
+      "id": "D07",
+      "title": "OKLCH and APCA color formats in the color picker",
+      "rationale": "Shottr's color picker showing OKLCH and APCA contrast ratios is its single most-praised developer differentiator over CleanShot X. Frontend developers working with CSS Color Level 4 (supported in all modern browsers as of 2024) use OKLCH as the canonical perceptual color space. Accessibility engineers need APCA (SAPC-0.98G) contrast ratios for WCAG 3.0 compliance checks. Both can be computed with pure Swift math from the sampled sRGB pixel — no external library required. Including these signals that FrameShot is built for serious front-end developers, not casual users.",
       "date": "2026-04-09"
     }
   ]
