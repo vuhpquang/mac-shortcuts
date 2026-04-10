@@ -124,13 +124,33 @@ CLAUDE.md                ← root context injected into every agent session
 
 ---
 
-## Quick start
+## Running the dashboard & agent team
 
+### Normal daily use
 ```bash
 bash start.sh
 ```
+This is the only command you need day-to-day. It:
+- Kills stale ports (8000, 7681–7685, 7690)
+- Reuses agent tmux sessions if Claude is already running in them
+- Restarts any agent session where Claude exited
+- Starts the blackboard HTTP server on port 8000
+- Opens the dashboard in your browser
 
-Opens the dashboard with all 5 agents idle and waiting.
+### Agent frozen or stuck
+```bash
+bash scripts/start-agents.sh
+```
+Restarts only the agent sessions (orchestrator, backend, frontend, tester, reviewer). Does not touch the HTTP server or browser.
+
+### Full reset (agents broken, sessions corrupted)
+```bash
+for s in orchestrator backend frontend tester reviewer; do tmux kill-session -t $s 2>/dev/null; done
+bash start.sh
+```
+Kills only the agent sessions — not your entire tmux server. Use this when agents are in an unrecoverable state.
+
+> **Do not use `tmux kill-server`** — it destroys all tmux sessions on your machine, including unrelated work.
 
 ---
 
