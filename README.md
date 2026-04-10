@@ -34,13 +34,13 @@ tracks progress          updates blackboard         writes decisions.md
 
 ### Agent roles
 
-| Agent | Responsibility | Writes to | Git? |
-|-------|---------------|-----------|------|
-| Orchestrator | Decompose tasks, assign roles, track progress | blackboard.md (tasks) | No |
-| Backend | APIs, DB, server logic | src/ + blackboard (status) | No |
-| Frontend | UI components, styling, client state | src/ + blackboard (status) | No |
-| Tester | Unit, integration, E2E tests | test files + blackboard (status) | No |
-| Reviewer | Code review, quality gates, commits | decisions.md + git | **YES — only agent** |
+| Agent        | Responsibility                                | Writes to                        | Git?                 |
+| ------------ | --------------------------------------------- | -------------------------------- | -------------------- |
+| Orchestrator | Decompose tasks, assign roles, track progress | blackboard.md (tasks)            | No                   |
+| Backend      | APIs, DB, server logic                        | src/ + blackboard (status)       | No                   |
+| Frontend     | UI components, styling, client state          | src/ + blackboard (status)       | No                   |
+| Tester       | Unit, integration, E2E tests                  | test files + blackboard (status) | No                   |
+| Reviewer     | Code review, quality gates, commits           | decisions.md + git               | **YES — only agent** |
 
 ### Execution flow
 
@@ -57,6 +57,7 @@ tracks progress          updates blackboard         writes decisions.md
 ```
 
 Human escalation at any step:
+
 ```bash
 bash ./scripts/ask_human.sh "question" {project_name}
 ```
@@ -127,10 +128,13 @@ CLAUDE.md                ← root context injected into every agent session
 ## Running the dashboard & agent team
 
 ### Normal daily use
+
 ```bash
 bash start.sh
 ```
+
 This is the only command you need day-to-day. It:
+
 - Kills stale ports (8000, 7681–7685, 7690)
 - Reuses agent tmux sessions if Claude is already running in them
 - Restarts any agent session where Claude exited
@@ -138,16 +142,20 @@ This is the only command you need day-to-day. It:
 - Opens the dashboard in your browser
 
 ### Agent frozen or stuck
+
 ```bash
 bash scripts/start-agents.sh
 ```
+
 Restarts only the agent sessions (orchestrator, backend, frontend, tester, reviewer). Does not touch the HTTP server or browser.
 
 ### Full reset (agents broken, sessions corrupted)
+
 ```bash
 for s in orchestrator backend frontend tester reviewer; do tmux kill-session -t $s 2>/dev/null; done
 bash start.sh
 ```
+
 Kills only the agent sessions — not your entire tmux server. Use this when agents are in an unrecoverable state.
 
 > **Do not use `tmux kill-server`** — it destroys all tmux sessions on your machine, including unrelated work.
@@ -161,6 +169,7 @@ bash scripts/init_project.sh <project_name>
 ```
 
 Creates:
+
 - `./projects/<project_name>/` git submodule
 - `./blackboard/<project_name>/state.json`
 - `./blackboard/<project_name>/context.md`
@@ -231,3 +240,13 @@ bash ./scripts/ask_human.sh "question" <project_name>
 ```
 
 This pauses and waits for your answer, then writes it to the project's blackboard.
+
+# Projects
+
+## Mac Shortcuts: gesturekit
+
+Run:
+
+```bash
+open projects/gesturekit/build/Mac\ Shortcuts.app
+```
