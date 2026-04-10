@@ -562,8 +562,8 @@ details .det-body { font-size:12px; color:var(--muted); line-height:1.6; padding
 
     <div class="agents-chat">
       <div class="chat-tag-btns">
-        <button class="chat-tag all active" id="ctag-all"           onclick="chatTag('all')">All</button>
-        <button class="chat-tag"            id="ctag-orchestrator" onclick="chatTag('orchestrator')">Orchestrator</button>
+        <button class="chat-tag all"    id="ctag-all"           onclick="chatTag('all')">All</button>
+        <button class="chat-tag active" id="ctag-orchestrator" onclick="chatTag('orchestrator')">Orchestrator</button>
         <button class="chat-tag"            id="ctag-backend"      onclick="chatTag('backend')">Backend</button>
         <button class="chat-tag"            id="ctag-frontend"     onclick="chatTag('frontend')">Frontend</button>
         <button class="chat-tag"            id="ctag-tester"       onclick="chatTag('tester')">Tester</button>
@@ -1242,7 +1242,7 @@ function renderArchitecture(arch) {
 // ── Agents page ────────────────────────────────────────────────────
 const BB_RELAY = 'http://localhost:7690/send';
 const BB_AGENTS = ['orchestrator','backend','frontend','tester','reviewer'];
-let bbChatTag = 'all';
+let bbChatTag = 'orchestrator';
 
 function agentsView(v) {
   BB_AGENTS.forEach(a => {
