@@ -135,10 +135,10 @@ bash start.sh
 
 This is the only command you need day-to-day. It:
 
-- Kills stale ports (8000, 7681–7685, 7690)
+- Kills stale ports (8080, 7681–7685, 7690)
 - Reuses agent tmux sessions if Claude is already running in them
 - Restarts any agent session where Claude exited
-- Starts the blackboard HTTP server on port 8000
+- Starts the blackboard HTTP server on port 8080
 - Opens the dashboard in your browser
 
 ### Agent frozen or stuck
@@ -225,7 +225,7 @@ Visualize any project's state (features, tasks, bugs, test results, architecture
 bash start.sh
 ```
 
-Then open: `http://localhost:8000/dashboard/`
+Then open: `http://localhost:8080/dashboard/`
 
 - Use the **project switcher** in the sidebar to switch between projects
 - Click **Agents** in the sidebar to see all 5 live terminal panes + chat bar

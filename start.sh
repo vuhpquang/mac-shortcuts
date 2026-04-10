@@ -3,7 +3,7 @@
 set -e
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DASHBOARD_PORT=8000
+DASHBOARD_PORT=8080
 DASHBOARD_URL="http://localhost:${DASHBOARD_PORT}/dashboard/"
 
 # ── 1. Start agents ─────────────────────────────────────────────────

@@ -628,7 +628,7 @@ async function loadProject(name) {
     document.getElementById('loading').innerHTML =
       `<div class="error-box"><strong>Failed to load project "${name}"</strong><br><br>${e.message}<br><br>
       <span style="font-size:12px;opacity:.8">Make sure the server is running from the <code style="font-family:var(--mono)">blackboard/</code> directory:<br>
-      <code style="font-family:var(--mono)">python3 -m http.server 8000</code></span></div>`;
+      <code style="font-family:var(--mono)">python3 -m http.server 8080</code></span></div>`;
   }
 }
 
