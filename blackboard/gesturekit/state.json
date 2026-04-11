@@ -3,7 +3,7 @@
     "id": "gesturekit",
     "name": "gesturekit",
     "goal": "A macOS menu bar app that detects multitouch trackpad gestures and maps them to system actions (middle click, Mission Control, etc.)",
-    "status": "qc_done"
+    "status": "bugs_fixed"
   },
   "features": [
     {
@@ -680,7 +680,8 @@
       "description": "threeFingerClick gesture is completely unimplemented. GestureEvent enum only has threeFingerTap and forceClickCorner(Corner) — the threeFingerClick case is absent. processThreeFinger() discards sustained 3-finger contacts silently instead of emitting threeFingerClick when contact duration exceeds clickMinDuration (0.18s). Required work: (1) add threeFingerClick case to GestureEvent enum; (2) in processThreeFinger(), track when 3 fingers are held >= clickMinDuration and emit threeFingerClick once at threshold crossing, resetting tapFired to prevent tap from also firing.",
       "severity": "high",
       "assigned_to": "worker",
-      "status": "open"
+      "status": "fixed",
+      "fix_notes": "Added threeFingerClick case to GestureEvent enum. Added clickMinDuration (0.18s) threshold to GestureRecognizer. In processThreeFinger(), emits .threeFingerClick once when 3 fingers are held >= clickMinDuration, sets tapFired=true to prevent tap from also firing on lift."
     },
     {
       "id": "BUG-05",
@@ -689,7 +690,8 @@
       "description": "GestureMapping struct is missing the threeFingerClick slot. The struct only defines 5 properties (threeFingerTap, cornerTopLeft, cornerTopRight, cornerBottomLeft, cornerBottomRight). Feature spec requires 6 slots. Required work: (1) add 'var threeFingerClick: GestureAction' to GestureMapping; (2) update GestureMapping.defaults to include threeFingerClick (.none by default); (3) update action(for:) to handle the threeFingerClick case once GestureEvent.threeFingerClick exists.",
       "severity": "high",
       "assigned_to": "worker",
-      "status": "open"
+      "status": "fixed",
+      "fix_notes": "Added var threeFingerClick: GestureAction to GestureMapping struct. Updated defaults to include threeFingerClick: .none. Added case .threeFingerClick to action(for:) switch."
     },
     {
       "id": "BUG-06",
@@ -698,7 +700,8 @@
       "description": "SettingsView window has two spec deviations: (1) frame is 480x480 but spec requires 480x520; (2) window title displayed in the view header is 'Mac Shortcuts Settings' instead of 'GestureKit Settings'. The header Text in SettingsView.swift reads 'Mac Shortcuts Settings' and the frame is .frame(width: 480, height: 480). Both should be corrected to match the feature spec and design.",
       "severity": "medium",
       "assigned_to": "worker",
-      "status": "open"
+      "status": "fixed",
+      "fix_notes": "Changed .frame(width: 480, height: 480) to .frame(width: 480, height: 520). Changed header Text from 'Mac Shortcuts Settings' to 'GestureKit Settings'."
     },
     {
       "id": "BUG-07",
@@ -707,7 +710,18 @@
       "description": "SettingsView gestureSlotList only renders 5 rows (Three Finger Tap + 4 Force Click corners) — the Three Finger Click row is missing. This is a downstream consequence of BUG-05 (GestureMapping missing threeFingerClick slot). Once BUG-05 is fixed and GestureMapping gains the threeFingerClick property, a GestureSlotRow for 'Three Finger Click' bound to $mapping.threeFingerClick must be added as the second row in gestureSlotList (between Three Finger Tap and Force Click — Top Left).",
       "severity": "high",
       "assigned_to": "worker",
-      "status": "open"
+      "status": "fixed",
+      "fix_notes": "Added GestureSlotRow for 'Three Finger Click' bound to $mapping.threeFingerClick as the second row in gestureSlotList, between Three Finger Tap and Force Click — Top Left."
+    },
+    {
+      "id": "BUG-08",
+      "feature_id": "F03",
+      "task_id": "T10",
+      "description": "Palm rejection is insufficiently robust: when a palm rests on the trackpad while the user scrolls with 2 fingers, the palm contact is sometimes counted as a third finger, causing a spurious threeFingerTap to fire instead of the intended 2-finger scroll. Root cause: GestureRecognizer does not distinguish between intentional finger contacts and incidental palm contacts before counting active touches. Required work: (1) add palm-rejection heuristics to touch classification — filter contacts by touch size (MTFinger.size), contact angle/eccentricity, and edge proximity before passing them to processThreeFinger(); (2) ensure that when a large-area contact (palm) is present alongside 2 normal-sized contacts, the finger count used for gesture classification is 2, not 3; (3) add a confidence threshold so the gesture fires only when all active contacts are plausible finger touches.",
+      "severity": "high",
+      "assigned_to": "worker",
+      "status": "fixed",
+      "fix_notes": "Extracted isFingerContact() helper with three rejection criteria: (1) size > palmSizeThreshold (1.0); (2) majorAxis/minorAxis > palmEccentricityThreshold (3.0) for elongated contacts; (3) nearEdge && size > edgePalmSizeThreshold (0.5) for wrist/palm resting at edge. didReceiveFingers() now uses isFingerContact() instead of bare size check."
     }
   ],
   "decisions": [
