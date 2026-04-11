@@ -9,6 +9,7 @@ enum Corner: String, CaseIterable {
 
 enum GestureEvent: Equatable {
     case threeFingerTap
+    case threeFingerClick
     case forceClickCorner(Corner)
 }
 
@@ -26,17 +27,25 @@ class GestureRecognizer: DeviceMonitorDelegate {
 
     // Thresholds
     var tapMaxDuration: TimeInterval = 0.50     // tap must lift within this time
+    var clickMinDuration: TimeInterval = 0.18   // held >= this → threeFingerClick, not tap
     var tapCooldown: Double = 0.50              // minimum seconds between successive taps
     var forceThreshold: Float = 0.85            // zTotal to trigger force click; normal touch = ~0.71–0.79
     var cornerZoneSize: Float = 0.30            // 30% of trackpad edge = corner zone
     // Velocity (normalized units/sec) above which a finger is considered to be dragging.
     // Force-click detection is skipped while dragging to avoid mid-drag corner misfires.
     var dragVelocityThreshold: Float = 0.8
+    // Velocity threshold for scroll detection. If 2+ contacts exceed this speed when
+    // a third contact appears, the third is treated as an incidental palm, not a gesture finger.
+    var scrollVelocityThreshold: Float = 0.15
 
-    // Palm rejection: contacts with size > this are treated as palms and ignored.
-    // A normal fingertip has size ~0.30; a palm is typically > 1.0.
-    // Matches MiddleDrag's "Strict (1.0)" preset.
-    var palmSizeThreshold: Float = 1.0
+    // Palm rejection thresholds
+    // A normal fingertip has size ~0.30; a palm is typically > 0.7.
+    var palmSizeThreshold: Float = 0.7
+    // Palms are elongated; ratio of majorAxis/minorAxis above this is palm-like.
+    var palmEccentricityThreshold: Float = 3.0
+    // Contacts near the trackpad edge with above-normal size are likely wrist/palm.
+    var edgeProximityZone: Float = 0.05         // 5% of trackpad width/height
+    var edgePalmSizeThreshold: Float = 0.5      // size above this at the edge → palm
 
     // Three-finger tap state
     private var threeFingerStart: Double?
@@ -54,25 +63,67 @@ class GestureRecognizer: DeviceMonitorDelegate {
     // MARK: - DeviceMonitorDelegate
 
     func didReceiveFingers(_ fingers: [MTFinger], timestamp: Double) {
-        // Palm rejection: filter out large contacts (palms, wrists).
-        // A normal fingertip has size ~0.30; palms are typically > 1.0.
-        let validFingers = fingers.filter { $0.size <= palmSizeThreshold }
-        let count = validFingers.count
-
-        processThreeFinger(count: count, timestamp: timestamp)
+        // Palm rejection: filter out contacts that are likely palms or wrists.
+        let validFingers = fingers.filter { isFingerContact($0) }
+        processThreeFinger(fingers: validFingers, timestamp: timestamp)
         processForceClick(fingers: validFingers)
+    }
+
+    /// Returns true when a contact looks like an intentional fingertip touch.
+    /// Filters out palms, wrists, and large incidental contacts.
+    private func isFingerContact(_ finger: MTFinger) -> Bool {
+        // Reject by size — palms are typically > 1.0.
+        if finger.size > palmSizeThreshold { return false }
+        // Reject elongated contacts — palms have a high major/minor axis ratio.
+        if finger.minorAxis > 0 {
+            let eccentricity = finger.majorAxis / finger.minorAxis
+            if eccentricity > palmEccentricityThreshold { return false }
+        }
+        // Reject contacts near the trackpad edge that are larger than a normal fingertip.
+        // A wrist resting at the bottom edge while scrolling is a common false-positive source.
+        let pos = finger.normalized.position
+        let nearEdge = pos.x < edgeProximityZone || pos.x > (1 - edgeProximityZone)
+                    || pos.y < edgeProximityZone || pos.y > (1 - edgeProximityZone)
+        if nearEdge && finger.size > edgePalmSizeThreshold { return false }
+        return true
     }
 
     // MARK: - Three-finger tap / click
 
-    private func processThreeFinger(count: Int, timestamp: Double) {
+    private func processThreeFinger(fingers: [MTFinger], timestamp: Double) {
+        let count = fingers.count
         if count >= 3 {
-            // Don't re-arm within the cooldown window — this prevents double-fire
-            // when fingers briefly re-register during the lift phase.
+            // Scroll guard: if 2 or more contacts are moving at scroll speed, the user is
+            // doing a 2-finger scroll and the extra contact is an incidental palm — abort.
+            let scrolling = fingers.filter { f in
+                let v = f.normalized.velocity
+                return (v.x * v.x + v.y * v.y).squareRoot() > scrollVelocityThreshold
+            }.count
+            if scrolling >= 2 {
+                // Disarm any in-progress gesture; the palm-while-scrolling scenario
+                // should never emit a tap or click.
+                threeFingerStart = nil
+                tapFired = false
+                return
+            }
+
+            // Don't re-arm within the cooldown window — prevents double-fire when
+            // fingers briefly re-register during the lift phase.
             let sinceLastTap = timestamp - lastTapTimestamp
             if threeFingerStart == nil && sinceLastTap > tapCooldown {
                 threeFingerStart = timestamp
                 tapFired = false
+            }
+            // Check for click threshold crossing: emit threeFingerClick once when
+            // 3 fingers have been held for >= clickMinDuration. Setting tapFired
+            // prevents a threeFingerTap from also firing when fingers lift.
+            if let start = threeFingerStart, !tapFired {
+                let duration = timestamp - start
+                if duration >= clickMinDuration {
+                    emit(.threeFingerClick)
+                    tapFired = true
+                    lastTapTimestamp = timestamp
+                }
             }
         } else {
             // Fingers dropped below 3 — evaluate and always reset.
